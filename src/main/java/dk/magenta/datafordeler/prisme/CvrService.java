@@ -2,15 +2,19 @@ package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.magenta.datafordeler.core.arearestriction.AreaRestriction;
+import dk.magenta.datafordeler.core.arearestriction.AreaRestrictionType;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
 import dk.magenta.datafordeler.core.exception.*;
+import dk.magenta.datafordeler.core.plugin.AreaRestrictionDefinition;
 import dk.magenta.datafordeler.core.user.DafoUserDetails;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.LoggerHelper;
-import dk.magenta.datafordeler.cpr.CprRolesDefinition;
+import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
+import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntity;
 import dk.magenta.datafordeler.cvr.data.company.CompanyQuery;
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.jws.WebMethod;
 import javax.servlet.http.HttpServletRequest;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @RestController
@@ -40,6 +45,9 @@ public class CvrService {
 
     @Autowired
     private DafoUserManager dafoUserManager;
+
+    @Autowired
+    private CvrPlugin cvrPlugin;
 
     private Logger log = LoggerFactory.getLogger(CvrService.class);
 
@@ -73,6 +81,8 @@ public class CvrService {
             CompanyQuery companyQuery = new CompanyQuery();
             companyQuery.setCVRNummer(cvrNummer);
 
+            this.applyAreaRestrictionsToQuery(companyQuery, user);
+
             List<CompanyEntity> companyEntities = QueryManager.getAllEntities(session, companyQuery, CompanyEntity.class);
 
             if (!companyEntities.isEmpty()) {
@@ -92,6 +102,17 @@ public class CvrService {
         catch (AccessDeniedException e) {
             loggerHelper.info("Access denied: " + e.getMessage());
             throw(e);
+        }
+    }
+
+    protected void applyAreaRestrictionsToQuery(CompanyQuery query, DafoUserDetails user) throws InvalidClientInputException {
+        Collection<AreaRestriction> restrictions = user.getAreaRestrictionsForRole(CvrRolesDefinition.READ_CVR_ROLE);
+        AreaRestrictionDefinition areaRestrictionDefinition = this.cvrPlugin.getAreaRestrictionDefinition();
+        AreaRestrictionType municipalityType = areaRestrictionDefinition.getAreaRestrictionTypeByName(CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER);
+        for (AreaRestriction restriction : restrictions) {
+            if (restriction.getType() == municipalityType) {
+                query.addKommunekode(restriction.getValue());
+            }
         }
     }
 

@@ -2,18 +2,22 @@ package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.magenta.datafordeler.core.arearestriction.AreaRestriction;
+import dk.magenta.datafordeler.core.arearestriction.AreaRestrictionType;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
 import dk.magenta.datafordeler.core.exception.*;
+import dk.magenta.datafordeler.core.plugin.AreaRestrictionDefinition;
 import dk.magenta.datafordeler.core.user.DafoUserDetails;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.LoggerHelper;
+import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
+import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
-import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.jws.WebMethod;
 import javax.servlet.http.HttpServletRequest;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @RestController
@@ -40,6 +45,9 @@ public class CprService {
 
     @Autowired
     private DafoUserManager dafoUserManager;
+
+    @Autowired
+    private CprPlugin cprPlugin;
 
     private Logger log = LoggerFactory.getLogger(CprService.class);
 
@@ -71,6 +79,7 @@ public class CprService {
 
             PersonQuery personQuery = new PersonQuery();
             personQuery.setPersonnummer(cprNummer);
+            this.applyAreaRestrictionsToQuery(personQuery, user);
 
             List<PersonEntity> personEntities = QueryManager.getAllEntities(session, personQuery, PersonEntity.class);
 
@@ -91,6 +100,17 @@ public class CprService {
         catch (AccessDeniedException e) {
             loggerHelper.info("Access denied: " + e.getMessage());
             throw(e);
+        }
+    }
+
+    protected void applyAreaRestrictionsToQuery(PersonQuery query, DafoUserDetails user) throws InvalidClientInputException {
+        Collection<AreaRestriction> restrictions = user.getAreaRestrictionsForRole(CprRolesDefinition.READ_CPR_ROLE);
+        AreaRestrictionDefinition areaRestrictionDefinition = this.cprPlugin.getAreaRestrictionDefinition();
+        AreaRestrictionType municipalityType = areaRestrictionDefinition.getAreaRestrictionTypeByName(CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER);
+        for (AreaRestriction restriction : restrictions) {
+            if (restriction.getType() == municipalityType) {
+                query.addKommunekode(restriction.getValue());
+            }
         }
     }
 

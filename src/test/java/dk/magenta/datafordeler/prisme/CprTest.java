@@ -1,15 +1,14 @@
 package dk.magenta.datafordeler.prisme;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.Application;
 import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
+import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
+import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
-import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
-import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
 import dk.magenta.datafordeler.gladdrreg.data.locality.*;
@@ -31,8 +30,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
@@ -51,9 +48,6 @@ public class CprTest {
     private PersonEntityManager personEntityManager;
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
     private GladdrregPlugin gladdrregPlugin;
 
     @Autowired
@@ -61,6 +55,9 @@ public class CprTest {
 
     @SpyBean
     private DafoUserManager dafoUserManager;
+
+    @Autowired
+    private CprPlugin cprPlugin;
 
     HashSet<Entity> createdEntities = new HashSet<>();
 
@@ -136,43 +133,81 @@ public class CprTest {
             session.close();
         }
 
-        TestUserDetails testUserDetails = new TestUserDetails();
-
-
-        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(
-                "/prisme/cpr/1/" + "0101001234",
-                HttpMethod.GET,
-                httpEntity,
-                String.class
-        );
-        Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-
-
-
-        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
-        this.applyAccess(testUserDetails);
-
-        response = restTemplate.exchange(
-                "/prisme/cpr/1/" + "0101001234",
-                HttpMethod.GET,
-                httpEntity,
-                String.class
-        );
-        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-
-
-        System.out.println("RESPONSE: " + response.getBody());
-
-        session = sessionManager.getSessionFactory().openSession();
-        Transaction transaction = session.beginTransaction();
         try {
-            for (Entity entity : createdEntities) {
-                session.delete(entity);
-            }
+            TestUserDetails testUserDetails = new TestUserDetails();
+
+
+            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+            ResponseEntity<String> response = restTemplate.exchange(
+                    "/prisme/cpr/1/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+
+
+            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+            this.applyAccess(testUserDetails);
+
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
+            System.out.println("RESPONSE: " + response.getBody());
+
+
+            testUserDetails.giveAccess(
+                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                    ).getRestriction(
+                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                    )
+            );
+            this.applyAccess(testUserDetails);
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+
+            testUserDetails.giveAccess(
+                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                    ).getRestriction(
+                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                    )
+            );
+            this.applyAccess(testUserDetails);
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
+            System.out.println("RESPONSE: " + response.getBody());
         } finally {
-            transaction.commit();
-            session.close();
+            session = sessionManager.getSessionFactory().openSession();
+            Transaction transaction = session.beginTransaction();
+            try {
+                for (Entity entity : createdEntities) {
+                    session.delete(entity);
+                }
+            } finally {
+                transaction.commit();
+                session.close();
+            }
         }
     }
 
