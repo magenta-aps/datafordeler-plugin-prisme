@@ -1,6 +1,5 @@
 package dk.magenta.datafordeler.prisme;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.database.Effect;
@@ -162,54 +161,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
 
         return wrapper.getNode();
-    }
-
-    public class NodeWrapper {
-        private ObjectNode node;
-
-        public NodeWrapper(ObjectNode node) {
-            this.node = node;
-        }
-
-        public ObjectNode getNode() {
-            return this.node;
-        }
-
-        public void put(String key, Boolean value) {
-            if (value != null) {
-                this.node.put(key, value);
-            }
-        }
-        public void put(String key, Short value) {
-            if (value != null) {
-                this.node.put(key, value);
-            }
-        }
-        public void put(String key, Integer value) {
-            if (value != null) {
-                this.node.put(key, value);
-            }
-        }
-        public void put(String key, Long value) {
-            if (value != null) {
-                this.node.put(key, value);
-            }
-        }
-        public void put(String key, String value) {
-            if (value != null) {
-                this.node.put(key, value);
-            }
-        }
-        public void set(String key, JsonNode value) {
-            if (value != null) {
-                this.node.set(key, value);
-            }
-        }
-        public void putPOJO(String key, Object value) {
-            if (value != null) {
-                this.node.putPOJO(key, value);
-            }
-        }
     }
 
     private OffsetDateTime getLastEffectTime(Collection<? extends Effect> effects) {
