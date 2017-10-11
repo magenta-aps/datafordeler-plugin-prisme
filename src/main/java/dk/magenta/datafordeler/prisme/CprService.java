@@ -1,14 +1,15 @@
 package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.arearestriction.AreaRestriction;
 import dk.magenta.datafordeler.core.arearestriction.AreaRestrictionType;
-import dk.magenta.datafordeler.core.database.Effect;
-import dk.magenta.datafordeler.core.database.QueryManager;
-import dk.magenta.datafordeler.core.database.Registration;
-import dk.magenta.datafordeler.core.database.SessionManager;
+import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.*;
+import dk.magenta.datafordeler.core.fapi.Query;
 import dk.magenta.datafordeler.core.plugin.AreaRestrictionDefinition;
 import dk.magenta.datafordeler.core.user.DafoUserDetails;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
@@ -16,22 +17,33 @@ import dk.magenta.datafordeler.core.util.LoggerHelper;
 import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
+import dk.magenta.datafordeler.cpr.configuration.CprConfiguration;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
+import org.hibernate.Filter;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import javax.jws.WebMethod;
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/prisme/cpr/1")
@@ -53,8 +65,7 @@ public class CprService {
 
     private PersonOutputWrapperPrisme personOutputWrapperPrisme = new PersonOutputWrapperPrisme();
 
-    @WebMethod(exclude = true)
-    @RequestMapping(path="/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
+    @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cprNummer") String cprNummer, HttpServletRequest request)
             throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, JsonProcessingException, HttpNotFoundException {
 
@@ -87,11 +98,118 @@ public class CprService {
                 PersonEntity personEntity = personEntities.get(0);
                 return objectMapper.writeValueAsString(personOutputWrapperPrisme.wrapResult(personEntity));
             }
-            throw new HttpNotFoundException("No entity with CPR number "+cprNummer+" was found");
+            throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
             session.close();
         }
     }
+
+    private static final String PARAM_UPDATED_SINCE = "updatedSince";
+    private static final String PARAM_CPR_NUMBER = "cprNumber";
+    private static final byte[] START_OBJECT = "{".getBytes();
+    private static final byte[] END_OBJECT = "}".getBytes();
+    private static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
+
+    @RequestMapping(method = RequestMethod.POST, path = "/", produces = {MediaType.APPLICATION_JSON_VALUE})
+    public StreamingResponseBody getBulk(HttpServletRequest request)
+            throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, IOException, HttpNotFoundException {
+        JsonNode requestBody;
+        try {
+            requestBody = objectMapper.readTree(request.getInputStream());
+        } catch (IOException e) {
+            throw new InvalidClientInputException(e.getMessage());
+        }
+        if (!requestBody.isObject()) {
+            throw new InvalidClientInputException("Input is not a JSON object");
+        }
+        ObjectNode requestObject = (ObjectNode) requestBody;
+
+        final OffsetDateTime updatedSince = requestObject.has(PARAM_UPDATED_SINCE) ? Query.parseDateTime(requestObject.get(PARAM_UPDATED_SINCE).asText()) : null;
+
+        final List<String> cprNumbers = (requestObject.has(PARAM_CPR_NUMBER)) ? this.getCprNumber(requestObject.get(PARAM_CPR_NUMBER)) : null;
+
+
+        DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
+        LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
+        loggerHelper.info(
+                "Incoming REST request for PrismeCprService with " +
+                        PARAM_UPDATED_SINCE + " = " + updatedSince + " and " +
+                        PARAM_CPR_NUMBER + " = " + (cprNumbers != null && cprNumbers.size() > 10 ? (cprNumbers.size() + " cpr numbers") : cprNumbers)
+        );
+        this.checkAndLogAccess(loggerHelper);
+
+        return new StreamingResponseBody() {
+
+            @Override
+            public void writeTo(OutputStream outputStream) throws IOException {
+
+                final Session lookupSession = sessionManager.getSessionFactory().openSession();
+                LookupService lookupService = new LookupService(lookupSession);
+                personOutputWrapperPrisme.setLookupService(lookupService);
+
+
+                final Session session = sessionManager.getSessionFactory().openSession();
+                try {
+
+                    OffsetDateTime now = OffsetDateTime.now();
+                    session.enableFilter(Registration.FILTER_REGISTRATION_FROM).setParameter(Registration.FILTERPARAM_REGISTRATION_FROM, now);
+                    session.enableFilter(Registration.FILTER_REGISTRATION_TO).setParameter(Registration.FILTERPARAM_REGISTRATION_TO, now);
+                    session.enableFilter(Effect.FILTER_EFFECT_FROM).setParameter(Effect.FILTERPARAM_EFFECT_FROM, now);
+                    session.enableFilter(Effect.FILTER_EFFECT_TO).setParameter(Effect.FILTERPARAM_EFFECT_TO, now);
+
+
+                    PersonQuery personQuery = new PersonQuery();
+                    if (updatedSince != null) {
+                        session.enableFilter(DataItem.FILTER_RECORD_AFTER).setParameter(DataItem.FILTERPARAM_RECORD_AFTER, updatedSince);
+                    }
+
+                    if (cprNumbers != null) {
+                        for (String cprNumber : cprNumbers) {
+                            personQuery.addPersonnummer(cprNumber);
+                        }
+                    }
+
+                    CprService.this.applyAreaRestrictionsToQuery(personQuery, user);
+
+                    Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(session, personQuery, PersonEntity.class);
+                    outputStream.write(START_OBJECT);
+                    personEntities.forEach(new Consumer<PersonEntity>() {
+                        boolean first = true;
+
+                        @Override
+                        public void accept(PersonEntity personEntity) {
+                            personEntity.forceLoad(session);
+                            try {
+                                if (!first) {
+                                    outputStream.flush();
+                                    outputStream.write(OBJECT_SEPARATOR);
+                                } else {
+                                    first = false;
+                                }
+                                outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
+                                outputStream.write(
+                                        objectMapper.writeValueAsString(
+                                                personOutputWrapperPrisme.wrapResult(personEntity)
+                                        ).getBytes(Charset.forName("UTF-8"))
+                                );
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            session.evict(personEntity);
+                        }
+                    });
+                    outputStream.write(END_OBJECT);
+                    outputStream.flush();
+                } catch (InvalidClientInputException e) {
+                    e.printStackTrace();
+                } finally {
+                    session.close();
+                    lookupSession.close();
+                }
+            }
+        };
+    }
+
 
     protected void checkAndLogAccess(LoggerHelper loggerHelper) throws AccessDeniedException, AccessRequiredException {
         try {
@@ -112,6 +230,21 @@ public class CprService {
                 query.addKommunekode(restriction.getValue());
             }
         }
+    }
+
+    private static Pattern nonDigits = Pattern.compile("[^\\d]");
+    private List<String> getCprNumber(JsonNode node) {
+        ArrayList<String> cprNumbers = new ArrayList<>();
+        if (node.isArray()) {
+            for (JsonNode item : (ArrayNode) node) {
+                cprNumbers.addAll(this.getCprNumber(item));
+            }
+        } else if (node.isTextual()) {
+            cprNumbers.add(nonDigits.matcher(node.asText()).replaceAll(""));
+        //} else if (node.isNumber()) {
+        //    cprNumbers.add(String.format("%1$10s", node.asText()));
+        }
+        return cprNumbers;
     }
 
 

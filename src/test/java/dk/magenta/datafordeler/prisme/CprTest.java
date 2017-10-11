@@ -1,10 +1,15 @@
 package dk.magenta.datafordeler.prisme;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
 import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
+import dk.magenta.datafordeler.core.util.InputStreamReader;
 import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
@@ -28,10 +33,10 @@ import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.HashSet;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static org.mockito.Mockito.when;
 
@@ -51,7 +56,10 @@ public class CprTest {
     private GladdrregPlugin gladdrregPlugin;
 
     @Autowired
-    TestRestTemplate restTemplate;
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @SpyBean
     private DafoUserManager dafoUserManager;
@@ -68,6 +76,26 @@ public class CprTest {
         testData.close();
         for (PersonRegistration registration : registrations) {
             createdEntities.add(registration.getEntity());
+        }
+    }
+
+    public void loadManyPersons(int count) throws Exception {
+        ImportMetadata importMetadata = new ImportMetadata();
+        String testData = InputStreamReader.readInputStream(CprTest.class.getResourceAsStream("/person.txt"));
+        String[] lines = testData.split("\n");
+        for (int i = 0; i < count; i++) {
+            StringJoiner sb = new StringJoiner("\n");
+            String newCpr = String.format("%010d", i);
+            for (int j = 0; j < lines.length; j++) {
+                String line = lines[j];
+                line = line.substring(0, 3) + newCpr + line.substring(13);
+                sb.add(line);
+            }
+            List<PersonRegistration> registrations = personEntityManager.parseRegistration(sb.toString(), importMetadata);
+            for (PersonRegistration registration : registrations) {
+                createdEntities.add(registration.getEntity());
+            }
+            System.out.println(i);
         }
     }
 
@@ -194,6 +222,100 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
+            System.out.println("RESPONSE: " + response.getBody());
+        } finally {
+            session = sessionManager.getSessionFactory().openSession();
+            Transaction transaction = session.beginTransaction();
+            try {
+                for (Entity entity : createdEntities) {
+                    session.delete(entity);
+                }
+            } finally {
+                transaction.commit();
+                session.close();
+            }
+        }
+    }
+
+    @Test
+    public void testPersonBulkPrisme() throws Exception {
+
+        loadManyPersons(10);
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            Transaction transaction = session.beginTransaction();
+            loadLocality(session);
+            loadRoad(session);
+            loadMunicipality(session);
+            loadPostalCode(session);
+            transaction.commit();
+        } finally {
+            session.close();
+        }
+
+        try {
+            TestUserDetails testUserDetails = new TestUserDetails();
+
+
+            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+            this.applyAccess(testUserDetails);
+
+            ObjectNode body = objectMapper.createObjectNode();
+
+            body.put("cprNumber", "0000000009");
+            HttpEntity<String> httpEntity = new HttpEntity<>(body.toString(), new HttpHeaders());
+            ResponseEntity<String> response = restTemplate.exchange(
+                    "/prisme/cpr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
+            body = objectMapper.createObjectNode();
+            ArrayNode cprList = objectMapper.createArrayNode();
+            cprList.add("0000000002");
+            cprList.add("0000000005");
+            body.set("cprNumber", cprList);
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
+
+
+            body = objectMapper.createObjectNode();
+            cprList = objectMapper.createArrayNode();
+            cprList.add("0000000000");
+            cprList.add("0000000001");
+            cprList.add("0000000002");
+            cprList.add("0000000003");
+            cprList.add("0000000004");
+            cprList.add("0000000005");
+            cprList.add("0000000006");
+            cprList.add("0000000007");
+            cprList.add("0000000008");
+            cprList.add("0000000009");
+            body.set("cprNumber", cprList);
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
 
 
             System.out.println("RESPONSE: " + response.getBody());

@@ -146,7 +146,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
         PersonAddressConameData personAddressConameData = dataItem.getConame();
         if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
-            wrapper.put("postboks", personAddressConameData.getConame());
+            wrapper.put("postoks", personAddressConameData.getConame());
         }
 
         PersonMoveMunicipalityData personMoveMunicipalityData = dataItem.getMoveMunicipality();
