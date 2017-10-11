@@ -66,7 +66,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         PersonCivilStatusData personCivilStatusData = dataItem.getCivilStatus();
         if (personCivilStatusData != null) {
             wrapper.put("civilstand", personCivilStatusData.getCivilStatus());
-            wrapper.put("civilstandOpdateret", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            wrapper.put("civilstandsdato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
             if (!personCivilStatusData.getSpouseCpr().isEmpty()) {
                 wrapper.put("ægtefælleCprNummer", personCivilStatusData.getSpouseCpr());
             }
@@ -77,7 +77,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             for (PersonProtectionData personProtectionDataItem : personProtectionData) {
             int protectionType = personProtectionDataItem.getProtectionType();
                 if (protectionType == 1) { // Person- og adressebeskyttelse
-                    wrapper.put("adresseBeskyttelse", true);
+                    wrapper.put("adressebeskyttelse", true);
                 }
             }
         }
@@ -89,8 +89,8 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
         PersonEmigrationData personEmigrationData = dataItem.getMigration();
         if (personEmigrationData != null) {
-            wrapper.put("landeKode", countryCodeMap.get(personEmigrationData.getCountryCode()));
-            wrapper.put("udrejseDato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            wrapper.put("landekode", countryCodeMap.get(personEmigrationData.getCountryCode()));
+            wrapper.put("udrejsedato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
         }
 
         PersonCoreData personCoreData = dataItem.getCoreData();
@@ -99,26 +99,26 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 wrapper.put("køn", (personCoreData.getGender() == PersonCoreData.Koen.KVINDE) ? "K" : "M");
             }
             if (personCoreData.getCprNumber() != null && !personCoreData.getCprNumber().isEmpty() && !entity.getPersonnummer().equals(personCoreData.getCprNumber())) {
-                wrapper.put("gældendeCprNummer", personCoreData.getCprNumber());
+                wrapper.put("nytCprNummer", personCoreData.getCprNumber());
             }
         }
 
         PersonStatusData personStatusData = dataItem.getStatus();
         if (personStatusData != null) {
-            wrapper.put("statusKode", personStatusData.getStatus());
-            wrapper.put("statusKodeOpdateret", this.getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            wrapper.put("statuskode", personStatusData.getStatus());
+            wrapper.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
         }
 
         PersonAddressData personAddressData = dataItem.getAddress();
         if (personAddressData != null) {
             int municipalityCode = personAddressData.getMunicipalityCode();
-            wrapper.put("kommuneKode", municipalityCode);
+            wrapper.put("myndighedskode", municipalityCode);
             int roadCode = personAddressData.getRoadCode();
-            wrapper.put("vejKode", roadCode);
+            wrapper.put("vejkode", roadCode);
 
             Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
 
-            wrapper.put("kommuneNavn", lookup.municipalityName);
+            wrapper.put("kommune", lookup.municipalityName);
 
             String roadName = lookup.roadName;
             if (roadName != null) {
@@ -132,21 +132,21 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 ));
             }
 
-            wrapper.put("postNummer", lookup.postalCode);
-            wrapper.put("postDistrikt", lookup.postalDistrict);
+            wrapper.put("postnummer", lookup.postalCode);
+            wrapper.put("bynavn", lookup.postalDistrict);
 
-            wrapper.put("stedKode", lookup.localityCode);
+            wrapper.put("stedkode", lookup.localityCode);
 
             if (municipalityCode > 0 && municipalityCode < 900) {
-                wrapper.put("landeKode", "DK");
+                wrapper.put("landekode", "DK");
             } else if (municipalityCode > 900) {
-                wrapper.put("landeKode", "GL");
+                wrapper.put("landekode", "GL");
             }
         }
 
         PersonAddressConameData personAddressConameData = dataItem.getConame();
         if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
-            wrapper.put("postBoks", personAddressConameData.getConame());
+            wrapper.put("postboks", personAddressConameData.getConame());
         }
 
         PersonMoveMunicipalityData personMoveMunicipalityData = dataItem.getMoveMunicipality();

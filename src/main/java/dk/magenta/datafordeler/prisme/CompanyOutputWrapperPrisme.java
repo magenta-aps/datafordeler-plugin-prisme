@@ -50,18 +50,18 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
     protected ObjectNode wrapDataObject(ObjectNode output, CompanyBaseData dataItem, LookupService lookupService) {
         NodeWrapper wrapper = new NodeWrapper(output);
 
-        wrapper.put("virksomhedsnavn", dataItem.getCompanyName());
+        wrapper.put("navn", dataItem.getCompanyName());
 
         Industry industry = dataItem.getPrimaryIndustry();
         if (industry != null) {
             // wrapper.put("brancheKode", industry.getIndustryCode());
-            wrapper.put("brancheNavn", industry.getIndustryText());
+            wrapper.put("forretningsområde", industry.getIndustryText());
         }
 
         String statusCode = dataItem.getStatusCode();
-        wrapper.put("statusKode", statusCode);
+        wrapper.put("statuskode", statusCode);
         if (statusCode != null) {
-            wrapper.put("statusKodeOpdateret", this.getLastEffectTimeFormatted(dataItem.getEffects()));
+            wrapper.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects()));
         }
 
         Address address = dataItem.getPostalAddress();
@@ -73,15 +73,15 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
             int roadCode = address.getRoadCode();
             Municipality municipality = address.getMunicipality();
             if (municipality != null) {
-                wrapper.put("kommuneKode", municipality.getCode());
-                wrapper.put("kommuneNavn", municipality.getName());
+                wrapper.put("myndighedskode", municipality.getCode());
+                wrapper.put("kommune", municipality.getName());
                 municipalityCode = municipality.getCode();
             }
-            wrapper.put("vejKode", roadCode);
+            wrapper.put("vejkode", roadCode);
             if (municipalityCode > 0 && roadCode > 0 && this.lookupService != null) {
                 Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
                 if (lookup.localityCode != 0) {
-                    wrapper.put("stedKode", lookup.localityCode);
+                    wrapper.put("stedkode", lookup.localityCode);
                 }
             }
             wrapper.put("adresse", address.getAddressFormatted());
@@ -91,11 +91,11 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
 
             PostCode postCode = address.getPost();
             if (postCode != null) {
-                wrapper.put("postNummer", postCode.getPostCode());
-                wrapper.put("postDistrikt", postCode.getPostDistrict());
+                wrapper.put("postnummer", postCode.getPostCode());
+                wrapper.put("bynavn", postCode.getPostDistrict());
             }
 
-            wrapper.put("landeKode", address.getCountryCode());
+            wrapper.put("landekode", address.getCountryCode());
         }
 
         return wrapper.getNode();
