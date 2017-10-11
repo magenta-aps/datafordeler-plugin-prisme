@@ -148,20 +148,19 @@ public class CprService {
                 personOutputWrapperPrisme.setLookupService(lookupService);
 
 
-                final Session session = sessionManager.getSessionFactory().openSession();
+                final Session entitySession = sessionManager.getSessionFactory().openSession();
                 try {
 
                     OffsetDateTime now = OffsetDateTime.now();
-                    session.enableFilter(Registration.FILTER_REGISTRATION_FROM).setParameter(Registration.FILTERPARAM_REGISTRATION_FROM, now);
-                    session.enableFilter(Registration.FILTER_REGISTRATION_TO).setParameter(Registration.FILTERPARAM_REGISTRATION_TO, now);
-                    session.enableFilter(Effect.FILTER_EFFECT_FROM).setParameter(Effect.FILTERPARAM_EFFECT_FROM, now);
-                    session.enableFilter(Effect.FILTER_EFFECT_TO).setParameter(Effect.FILTERPARAM_EFFECT_TO, now);
-
 
                     PersonQuery personQuery = new PersonQuery();
-                    if (updatedSince != null) {
-                        session.enableFilter(DataItem.FILTER_RECORD_AFTER).setParameter(DataItem.FILTERPARAM_RECORD_AFTER, updatedSince);
-                    }
+
+                    personQuery.setRegistrationFrom(now);
+                    personQuery.setRegistrationTo(now);
+                    personQuery.setEffectFrom(now);
+                    personQuery.setEffectTo(now);
+
+                    personQuery.setRecordAfter(updatedSince);
 
                     if (cprNumbers != null) {
                         for (String cprNumber : cprNumbers) {
@@ -171,14 +170,14 @@ public class CprService {
 
                     CprService.this.applyAreaRestrictionsToQuery(personQuery, user);
 
-                    Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(session, personQuery, PersonEntity.class);
+                    Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, personQuery, PersonEntity.class);
                     outputStream.write(START_OBJECT);
                     personEntities.forEach(new Consumer<PersonEntity>() {
                         boolean first = true;
 
                         @Override
                         public void accept(PersonEntity personEntity) {
-                            personEntity.forceLoad(session);
+                            personEntity.forceLoad(entitySession);
                             try {
                                 if (!first) {
                                     outputStream.flush();
@@ -195,7 +194,7 @@ public class CprService {
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
-                            session.evict(personEntity);
+                            entitySession.evict(personEntity);
                         }
                     });
                     outputStream.write(END_OBJECT);
@@ -203,7 +202,7 @@ public class CprService {
                 } catch (InvalidClientInputException e) {
                     e.printStackTrace();
                 } finally {
-                    session.close();
+                    entitySession.close();
                     lookupSession.close();
                 }
             }

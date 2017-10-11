@@ -1,6 +1,5 @@
 package dk.magenta.datafordeler.prisme;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -34,6 +33,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.*;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.StringJoiner;
@@ -80,10 +81,14 @@ public class CprTest {
     }
 
     public void loadManyPersons(int count) throws Exception {
+        this.loadManyPersons(count, 0);
+    }
+
+    public void loadManyPersons(int count, int start) throws Exception {
         ImportMetadata importMetadata = new ImportMetadata();
         String testData = InputStreamReader.readInputStream(CprTest.class.getResourceAsStream("/person.txt"));
         String[] lines = testData.split("\n");
-        for (int i = 0; i < count; i++) {
+        for (int i = start; i < count + start; i++) {
             StringJoiner sb = new StringJoiner("\n");
             String newCpr = String.format("%010d", i);
             for (int j = 0; j < lines.length; j++) {
@@ -95,7 +100,6 @@ public class CprTest {
             for (PersonRegistration registration : registrations) {
                 createdEntities.add(registration.getEntity());
             }
-            System.out.println(i);
         }
     }
 
@@ -185,9 +189,8 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-
-            System.out.println("RESPONSE: " + response.getBody());
 
 
             testUserDetails.giveAccess(
@@ -222,27 +225,22 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-
-            System.out.println("RESPONSE: " + response.getBody());
         } finally {
-            session = sessionManager.getSessionFactory().openSession();
-            Transaction transaction = session.beginTransaction();
-            try {
-                for (Entity entity : createdEntities) {
-                    session.delete(entity);
-                }
-            } finally {
-                transaction.commit();
-                session.close();
-            }
+            cleanup();
         }
     }
 
     @Test
     public void testPersonBulkPrisme() throws Exception {
 
-        loadManyPersons(10);
+        OffsetDateTime start = OffsetDateTime.now();
+        loadManyPersons(5, 0);
+        OffsetDateTime middle = OffsetDateTime.now();
+        Thread.sleep(10);
+        loadManyPersons(5, 5);
+        OffsetDateTime afterLoad = OffsetDateTime.now();
 
         Session session = sessionManager.getSessionFactory().openSession();
         try {
@@ -256,6 +254,7 @@ public class CprTest {
             session.close();
         }
 
+
         try {
             TestUserDetails testUserDetails = new TestUserDetails();
 
@@ -264,7 +263,6 @@ public class CprTest {
             this.applyAccess(testUserDetails);
 
             ObjectNode body = objectMapper.createObjectNode();
-
             body.put("cprNumber", "0000000009");
             HttpEntity<String> httpEntity = new HttpEntity<>(body.toString(), new HttpHeaders());
             ResponseEntity<String> response = restTemplate.exchange(
@@ -274,6 +272,7 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(1, objectMapper.readTree(response.getBody()).size());
 
 
             body = objectMapper.createObjectNode();
@@ -289,6 +288,7 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(2, objectMapper.readTree(response.getBody()).size());
 
 
 
@@ -314,27 +314,111 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+
+
+
+            body = objectMapper.createObjectNode();
+            cprList = objectMapper.createArrayNode();
+            cprList.add("0000000000");
+            cprList.add("0000000001");
+            cprList.add("0000000002");
+            cprList.add("0000000003");
+            cprList.add("0000000004");
+            cprList.add("0000000005");
+            cprList.add("0000000006");
+            cprList.add("0000000007");
+            cprList.add("0000000008");
+            cprList.add("0000000009");
+            body.set("cprNumber", cprList);
+            body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+
+
+
+            body = objectMapper.createObjectNode();
+            cprList = objectMapper.createArrayNode();
+            cprList.add("0000000000");
+            cprList.add("0000000001");
+            cprList.add("0000000002");
+            cprList.add("0000000003");
+            cprList.add("0000000004");
+            cprList.add("0000000005");
+            cprList.add("0000000006");
+            cprList.add("0000000007");
+            cprList.add("0000000008");
+            cprList.add("0000000009");
+            body.set("cprNumber", cprList);
+            body.put("updatedSince", afterLoad.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(0, objectMapper.readTree(response.getBody()).size());
 
 
 
 
-            System.out.println("RESPONSE: " + response.getBody());
+
+            body = objectMapper.createObjectNode();
+            cprList = objectMapper.createArrayNode();
+            cprList.add("0000000000");
+            cprList.add("0000000001");
+            cprList.add("0000000002");
+            cprList.add("0000000003");
+            cprList.add("0000000004");
+            cprList.add("0000000005");
+            cprList.add("0000000006");
+            cprList.add("0000000007");
+            cprList.add("0000000008");
+            cprList.add("0000000009");
+            body.set("cprNumber", cprList);
+            body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
+
+
+
         } finally {
-            session = sessionManager.getSessionFactory().openSession();
-            Transaction transaction = session.beginTransaction();
-            try {
-                for (Entity entity : createdEntities) {
-                    session.delete(entity);
-                }
-            } finally {
-                transaction.commit();
-                session.close();
-            }
+            cleanup();
         }
     }
 
     private void applyAccess(TestUserDetails testUserDetails) {
         when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
+    }
+
+    private void cleanup() {
+        Session session = sessionManager.getSessionFactory().openSession();
+        Transaction transaction = session.beginTransaction();
+        try {
+            for (Entity entity : createdEntities) {
+                session.delete(entity);
+            }
+            createdEntities.clear();
+        } finally {
+            transaction.commit();
+            session.close();
+        }
     }
 
 }
