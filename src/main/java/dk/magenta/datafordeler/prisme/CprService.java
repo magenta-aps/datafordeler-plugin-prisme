@@ -17,16 +17,13 @@ import dk.magenta.datafordeler.core.util.LoggerHelper;
 import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
-import dk.magenta.datafordeler.cpr.configuration.CprConfiguration;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
-import org.hibernate.Filter;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -63,7 +60,7 @@ public class CprService {
 
     private Logger log = LoggerFactory.getLogger(CprService.class);
 
-    private PersonOutputWrapperPrisme personOutputWrapperPrisme = new PersonOutputWrapperPrisme();
+    private PersonOutputWrapperPrisme personOutputWrapper = new PersonOutputWrapperPrisme();
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cprNummer") String cprNummer, HttpServletRequest request)
@@ -86,7 +83,7 @@ public class CprService {
             session.enableFilter(Effect.FILTER_EFFECT_TO).setParameter(Effect.FILTERPARAM_EFFECT_TO, now);
 
             LookupService lookupService = new LookupService(session);
-            personOutputWrapperPrisme.setLookupService(lookupService);
+            personOutputWrapper.setLookupService(lookupService);
 
             PersonQuery personQuery = new PersonQuery();
             personQuery.setPersonnummer(cprNummer);
@@ -96,7 +93,7 @@ public class CprService {
 
             if (!personEntities.isEmpty()) {
                 PersonEntity personEntity = personEntities.get(0);
-                return objectMapper.writeValueAsString(personOutputWrapperPrisme.wrapResult(personEntity));
+                return objectMapper.writeValueAsString(personOutputWrapper.wrapResult(personEntity));
             }
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
@@ -145,7 +142,7 @@ public class CprService {
 
                 final Session lookupSession = sessionManager.getSessionFactory().openSession();
                 LookupService lookupService = new LookupService(lookupSession);
-                personOutputWrapperPrisme.setLookupService(lookupService);
+                personOutputWrapper.setLookupService(lookupService);
 
 
                 final Session entitySession = sessionManager.getSessionFactory().openSession();
@@ -188,7 +185,7 @@ public class CprService {
                                 outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
                                 outputStream.write(
                                         objectMapper.writeValueAsString(
-                                                personOutputWrapperPrisme.wrapResult(personEntity)
+                                                personOutputWrapper.wrapResult(personEntity)
                                         ).getBytes(Charset.forName("UTF-8"))
                                 );
                             } catch (IOException e) {

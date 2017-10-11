@@ -150,9 +150,7 @@ public class CprTest {
         }
     }
 
-    @Test
-    public void testPersonPrisme() throws Exception {
-        loadPerson();
+    private void loadGladdrregData() throws IOException, DataFordelerException {
         Session session = sessionManager.getSessionFactory().openSession();
         try {
             Transaction transaction = session.beginTransaction();
@@ -164,6 +162,12 @@ public class CprTest {
         } finally {
             session.close();
         }
+    }
+
+    @Test
+    public void testPersonPrisme() throws Exception {
+        loadPerson();
+        loadGladdrregData();
 
         try {
             TestUserDetails testUserDetails = new TestUserDetails();
@@ -242,18 +246,7 @@ public class CprTest {
         loadManyPersons(5, 5);
         OffsetDateTime afterLoad = OffsetDateTime.now();
 
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            Transaction transaction = session.beginTransaction();
-            loadLocality(session);
-            loadRoad(session);
-            loadMunicipality(session);
-            loadPostalCode(session);
-            transaction.commit();
-        } finally {
-            session.close();
-        }
-
+        loadGladdrregData();
 
         try {
             TestUserDetails testUserDetails = new TestUserDetails();
@@ -396,8 +389,6 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
 
-
-
         } finally {
             cleanup();
         }
@@ -416,8 +407,12 @@ public class CprTest {
             }
             createdEntities.clear();
         } finally {
-            transaction.commit();
-            session.close();
+            try {
+                transaction.commit();
+            } catch (Exception e) {
+            } finally {
+                session.close();
+            }
         }
     }
 

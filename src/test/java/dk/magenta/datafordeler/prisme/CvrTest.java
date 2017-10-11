@@ -2,11 +2,14 @@ package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
 import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
+import dk.magenta.datafordeler.core.util.InputStreamReader;
 import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
@@ -32,6 +35,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 
@@ -66,7 +71,7 @@ public class CvrTest {
     HashSet<Entity> createdEntities = new HashSet<>();
 
 
-    private void loadCompany(Session session) throws IOException, DataFordelerException {
+    private void loadCompany() throws IOException, DataFordelerException {
         InputStream testData = CvrTest.class.getResourceAsStream("/company_in.json");
         JsonNode root = objectMapper.readTree(testData);
         testData.close();
@@ -75,6 +80,22 @@ public class CvrTest {
         ImportMetadata importMetadata = new ImportMetadata();
         for (JsonNode item : itemList) {
             List<? extends Registration> registrations = companyEntityManager.parseRegistration(item.get("_source").get("Vrvirksomhed"), importMetadata);
+            for (Registration registration : registrations) {
+                createdEntities.add(registration.getEntity());
+            }
+        }
+    }
+
+    public void loadManyCompanies(int count) throws Exception {
+        this.loadManyCompanies(count, 0);
+    }
+
+    public void loadManyCompanies(int count, int start) throws Exception {
+        ImportMetadata importMetadata = new ImportMetadata();
+        String testData = InputStreamReader.readInputStream(CvrTest.class.getResourceAsStream("/company_in.json"));
+        for (int i = start; i < count + start; i++) {
+            String altered = testData.replaceAll("25052943", "1" + String.format("%07d", i));
+            List<? extends Registration> registrations = companyEntityManager.parseRegistration(altered, importMetadata);
             for (Registration registration : registrations) {
                 createdEntities.add(registration.getEntity());
             }
@@ -117,19 +138,23 @@ public class CvrTest {
         }
     }
 
-    @Test
-    public void testCompanyPrisme() throws IOException, DataFordelerException {
+    private void loadGladdrregData() throws IOException, DataFordelerException {
         Session session = sessionManager.getSessionFactory().openSession();
         try {
             Transaction transaction = session.beginTransaction();
             loadLocality(session);
             loadRoad(session);
             loadMunicipality(session);
-            loadCompany(session);
             transaction.commit();
         } finally {
             session.close();
         }
+    }
+
+    @Test
+    public void testCompanyPrisme() throws IOException, DataFordelerException {
+        loadGladdrregData();
+        loadCompany();
 
         try {
 
@@ -193,22 +218,191 @@ public class CvrTest {
 
             System.out.println("RESPONSE: " + response.getBody());
         } finally {
+            cleanup();
+        }
+    }
 
-            session = sessionManager.getSessionFactory().openSession();
-            Transaction transaction = session.beginTransaction();
-            try {
-                for (Entity entity : createdEntities) {
-                    session.delete(entity);
-                }
-            } finally {
-                transaction.commit();
-                session.close();
-            }
+
+    @Test
+    public void testCompanyBulkPrisme() throws Exception {
+
+        OffsetDateTime start = OffsetDateTime.now();
+        loadManyCompanies(5, 0);
+        OffsetDateTime middle = OffsetDateTime.now();
+        Thread.sleep(10);
+        loadManyCompanies(5, 5);
+
+        loadGladdrregData();
+        OffsetDateTime afterLoad = OffsetDateTime.now();
+
+        try {
+            TestUserDetails testUserDetails = new TestUserDetails();
+
+
+            testUserDetails.giveAccess(CvrRolesDefinition.READ_CVR_ROLE);
+            this.applyAccess(testUserDetails);
+
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("cvrNumber", "10000009");
+            HttpEntity<String> httpEntity = new HttpEntity<>(body.toString(), new HttpHeaders());
+            ResponseEntity<String> response = restTemplate.exchange(
+                    "/prisme/cvr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(1, objectMapper.readTree(response.getBody()).size());
+
+
+            body = objectMapper.createObjectNode();
+            ArrayNode cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000002");
+            cvrList.add("10000005");
+            body.set("cvrNumber", cvrList);
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cvr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(2, objectMapper.readTree(response.getBody()).size());
+
+
+
+
+            body = objectMapper.createObjectNode();
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cvr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+
+
+
+            body = objectMapper.createObjectNode();
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
+            body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cvr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+
+
+
+            body = objectMapper.createObjectNode();
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
+            body.put("updatedSince", afterLoad.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cvr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(0, objectMapper.readTree(response.getBody()).size());
+
+
+
+
+
+            body = objectMapper.createObjectNode();
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
+            body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            response = restTemplate.exchange(
+                    "/prisme/cvr/1/",
+                    HttpMethod.POST,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
+
+        } finally {
+            cleanup();
         }
     }
 
     private void applyAccess(TestUserDetails testUserDetails) {
         when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
+    }
+
+    private void cleanup() {
+        Session session = sessionManager.getSessionFactory().openSession();
+        Transaction transaction = session.beginTransaction();
+        try {
+            for (Entity entity : createdEntities) {
+                try {
+                    session.delete(entity);
+                } catch (Exception e) {}
+            }
+            createdEntities.clear();
+        } finally {
+            try {
+                transaction.commit();
+            } catch (Exception e) {
+            } finally {
+                session.close();
+            }
+        }
     }
 
 }
