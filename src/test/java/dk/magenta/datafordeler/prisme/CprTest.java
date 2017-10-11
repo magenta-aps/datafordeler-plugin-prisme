@@ -5,6 +5,8 @@ import dk.magenta.datafordeler.core.Application;
 import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
+import dk.magenta.datafordeler.core.user.DafoUserManager;
+import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
@@ -16,15 +18,14 @@ import dk.magenta.datafordeler.gladdrreg.data.postalcode.*;
 import dk.magenta.datafordeler.gladdrreg.data.road.*;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -34,6 +35,8 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+
+import static org.mockito.Mockito.when;
 
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -55,6 +58,9 @@ public class CprTest {
 
     @Autowired
     TestRestTemplate restTemplate;
+
+    @SpyBean
+    private DafoUserManager dafoUserManager;
 
     HashSet<Entity> createdEntities = new HashSet<>();
 
@@ -130,6 +136,9 @@ public class CprTest {
             session.close();
         }
 
+        TestUserDetails testUserDetails = new TestUserDetails();
+
+
         HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
         ResponseEntity<String> response = restTemplate.exchange(
                 "/prisme/cpr/1/" + "0101001234",
@@ -137,6 +146,22 @@ public class CprTest {
                 httpEntity,
                 String.class
         );
+        Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+
+
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
         System.out.println("RESPONSE: " + response.getBody());
 
         session = sessionManager.getSessionFactory().openSession();
@@ -149,6 +174,10 @@ public class CprTest {
             transaction.commit();
             session.close();
         }
+    }
+
+    private void applyAccess(TestUserDetails testUserDetails) {
+        when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
     }
 
 }

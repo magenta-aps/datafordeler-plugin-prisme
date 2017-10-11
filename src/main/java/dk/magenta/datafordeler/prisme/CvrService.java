@@ -7,9 +7,16 @@ import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
 import dk.magenta.datafordeler.core.exception.*;
+import dk.magenta.datafordeler.core.user.DafoUserDetails;
+import dk.magenta.datafordeler.core.user.DafoUserManager;
+import dk.magenta.datafordeler.core.util.LoggerHelper;
+import dk.magenta.datafordeler.cpr.CprRolesDefinition;
+import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntity;
 import dk.magenta.datafordeler.cvr.data.company.CompanyQuery;
 import org.hibernate.Session;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,12 +38,25 @@ public class CvrService {
     @Autowired
     ObjectMapper objectMapper;
 
+    @Autowired
+    private DafoUserManager dafoUserManager;
+
+    private Logger log = LoggerFactory.getLogger(CvrService.class);
+
     private CompanyOutputWrapperPrisme companyOutputWrapper = new CompanyOutputWrapperPrisme();
 
     @WebMethod(exclude = true)
     @RequestMapping(path="/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
             throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, JsonProcessingException, HttpNotFoundException {
+
+        DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
+        LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
+        loggerHelper.info(
+                "Incoming REST request for PrismeCvrService with cvrNummer " + cvrNummer
+        );
+        this.checkAndLogAccess(loggerHelper);
+
 
         final Session session = sessionManager.getSessionFactory().openSession();
         try {
@@ -65,5 +85,14 @@ public class CvrService {
         }
     }
 
+    protected void checkAndLogAccess(LoggerHelper loggerHelper) throws AccessDeniedException, AccessRequiredException {
+        try {
+            loggerHelper.getUser().checkHasSystemRole(CvrRolesDefinition.READ_CVR_ROLE);
+        }
+        catch (AccessDeniedException e) {
+            loggerHelper.info("Access denied: " + e.getMessage());
+            throw(e);
+        }
+    }
 
 }

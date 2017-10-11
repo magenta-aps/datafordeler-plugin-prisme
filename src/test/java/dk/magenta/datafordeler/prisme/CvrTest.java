@@ -6,7 +6,9 @@ import dk.magenta.datafordeler.core.Application;
 import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
+import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
+import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntity;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntityManager;
 import dk.magenta.datafordeler.cvr.data.company.CompanyQuery;
@@ -25,11 +27,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -38,6 +38,8 @@ import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
+
+import static org.mockito.Mockito.when;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = Application.class)
@@ -58,6 +60,9 @@ public class CvrTest {
 
     @Autowired
     TestRestTemplate restTemplate;
+
+    @SpyBean
+    private DafoUserManager dafoUserManager;
 
     HashSet<Entity> createdEntities = new HashSet<>();
 
@@ -127,6 +132,8 @@ public class CvrTest {
             session.close();
         }
 
+        TestUserDetails testUserDetails = new TestUserDetails();
+
         HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
         ResponseEntity<String> response = restTemplate.exchange(
                 "/prisme/cvr/1/" + 25052943,
@@ -134,6 +141,21 @@ public class CvrTest {
                 httpEntity,
                 String.class
         );
+        Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+
+
+        testUserDetails.giveAccess(CvrRolesDefinition.READ_CVR_ROLE);
+        this.applyAccess(testUserDetails);
+
+        response = restTemplate.exchange(
+                "/prisme/cvr/1/" + 25052943,
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+
         System.out.println("RESPONSE: " + response.getBody());
 
         session = sessionManager.getSessionFactory().openSession();
@@ -146,6 +168,10 @@ public class CvrTest {
             transaction.commit();
             session.close();
         }
+    }
+
+    private void applyAccess(TestUserDetails testUserDetails) {
+        when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
     }
 
 }
