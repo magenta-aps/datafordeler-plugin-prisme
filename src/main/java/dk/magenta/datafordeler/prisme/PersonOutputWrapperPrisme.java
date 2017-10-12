@@ -43,29 +43,29 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             for (PersonEffect virkning : personRegistration.getEffects()) {
                 OffsetDateTime effectFrom = virkning.getEffectFrom();
                 List<PersonBaseData> dataItems = virkning.getDataItems();
-                for (PersonBaseData PersonBaseData : virkning.getDataItems()) {
-                    this.wrapDataObject(root, PersonBaseData, input);
+                for (PersonBaseData personBaseData : virkning.getDataItems()) {
+                    this.wrapDataObject(root, personBaseData, input);
                 }
 
                 if (effectFrom != null) {
                     if (effectFrom.isAfter(highestStatusTime)) {
-                        for (PersonBaseData companyBaseData : dataItems) {
-                            if (companyBaseData.getStatus() != null) {
+                        for (PersonBaseData personBaseData : dataItems) {
+                            if (personBaseData.getStatus() != null) {
                                 highestStatusTime = effectFrom;
                             }
                         }
                     }
                     if (effectFrom.isAfter(highestCivilStatusTime)) {
-                        for (PersonBaseData companyBaseData : dataItems) {
-                            if (companyBaseData.getCivilStatus() != null) {
-                                highestStatusTime = effectFrom;
+                        for (PersonBaseData personBaseData : dataItems) {
+                            if (personBaseData.getCivilStatus() != null) {
+                                highestCivilStatusTime = effectFrom;
                             }
                         }
                     }
                     if (effectFrom.isAfter(highestEmigrationTime)) {
-                        for (PersonBaseData companyBaseData : dataItems) {
-                            if (companyBaseData.getMigration() != null) {
-                                highestStatusTime = effectFrom;
+                        for (PersonBaseData personBaseData : dataItems) {
+                            if (personBaseData.getMigration() != null) {
+                                highestEmigrationTime = effectFrom;
                             }
                         }
                     }
@@ -102,7 +102,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         PersonCivilStatusData personCivilStatusData = dataItem.getCivilStatus();
         if (personCivilStatusData != null) {
             output.put("civilstand", personCivilStatusData.getCivilStatus());
-            // output.put("civilstandsdato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            //output.put("civilstandsdato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
             if (!personCivilStatusData.getSpouseCpr().isEmpty()) {
                 output.put("ægtefælleCprNummer", personCivilStatusData.getSpouseCpr());
             }

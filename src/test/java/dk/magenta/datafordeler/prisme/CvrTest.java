@@ -375,6 +375,7 @@ public class CvrTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
 
+            System.out.println(response);
         } finally {
             cleanup();
         }

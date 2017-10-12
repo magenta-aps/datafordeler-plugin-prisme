@@ -232,6 +232,8 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
+            System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(objectMapper.readTree(response.getBody())));
+
         } finally {
             cleanup();
         }
