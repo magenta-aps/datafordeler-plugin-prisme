@@ -1,7 +1,6 @@
 package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
 import dk.magenta.datafordeler.cpr.data.person.PersonEffect;
@@ -14,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.StringJoiner;
 
 public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
@@ -32,23 +32,59 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         objectMapper = new ObjectMapper();
 
         // Root
-        ObjectNode root = objectMapper.createObjectNode();
+        NodeWrapper root = new NodeWrapper(objectMapper.createObjectNode());
         root.put("cprNummer", input.getPersonnummer());
 
+        OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
+        OffsetDateTime highestCivilStatusTime = OffsetDateTime.MIN;
+        OffsetDateTime highestEmigrationTime = OffsetDateTime.MIN;
         // Registrations
         for (PersonRegistration personRegistration : input.getRegistrations()) {
             for (PersonEffect virkning : personRegistration.getEffects()) {
-                for (dk.magenta.datafordeler.cpr.data.person.data.PersonBaseData PersonBaseData : virkning.getDataItems()) {
-                    this.wrapDataObject(root, PersonBaseData, this.lookupService, input);
+                OffsetDateTime effectFrom = virkning.getEffectFrom();
+                List<PersonBaseData> dataItems = virkning.getDataItems();
+                for (PersonBaseData PersonBaseData : virkning.getDataItems()) {
+                    this.wrapDataObject(root, PersonBaseData, input);
+                }
+
+                if (effectFrom != null) {
+                    if (effectFrom.isAfter(highestStatusTime)) {
+                        for (PersonBaseData companyBaseData : dataItems) {
+                            if (companyBaseData.getStatus() != null) {
+                                highestStatusTime = effectFrom;
+                            }
+                        }
+                    }
+                    if (effectFrom.isAfter(highestCivilStatusTime)) {
+                        for (PersonBaseData companyBaseData : dataItems) {
+                            if (companyBaseData.getCivilStatus() != null) {
+                                highestStatusTime = effectFrom;
+                            }
+                        }
+                    }
+                    if (effectFrom.isAfter(highestEmigrationTime)) {
+                        for (PersonBaseData companyBaseData : dataItems) {
+                            if (companyBaseData.getMigration() != null) {
+                                highestStatusTime = effectFrom;
+                            }
+                        }
+                    }
                 }
             }
         }
-        return root;
+        if (highestStatusTime.isAfter(OffsetDateTime.MIN)) {
+            root.put("statuskodedato", highestStatusTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
+        if (highestCivilStatusTime.isAfter(OffsetDateTime.MIN)) {
+            root.put("civilstandsdato", highestCivilStatusTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
+        if (highestEmigrationTime.isAfter(OffsetDateTime.MIN)) {
+            root.put("udrejsedato", highestEmigrationTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
+        return root.getNode();
     }
 
-    protected ObjectNode wrapDataObject(ObjectNode output, PersonBaseData dataItem, LookupService lookupService, PersonEntity entity) {
-
-        NodeWrapper wrapper = new NodeWrapper(output);
+    protected void wrapDataObject(NodeWrapper output, PersonBaseData dataItem, PersonEntity entity) {
 
         PersonNameData nameData = dataItem.getName();
         if (nameData != null) {
@@ -59,16 +95,16 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             if (!nameData.getMiddleName().isEmpty()) {
                 nameJoiner.add(nameData.getMiddleName());
             }
-            wrapper.put("fornavn", nameJoiner.toString());
-            wrapper.put("efternavn", nameData.getLastName());
+            output.put("fornavn", nameJoiner.toString());
+            output.put("efternavn", nameData.getLastName());
         }
 
         PersonCivilStatusData personCivilStatusData = dataItem.getCivilStatus();
         if (personCivilStatusData != null) {
-            wrapper.put("civilstand", personCivilStatusData.getCivilStatus());
-            wrapper.put("civilstandsdato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            output.put("civilstand", personCivilStatusData.getCivilStatus());
+            // output.put("civilstandsdato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
             if (!personCivilStatusData.getSpouseCpr().isEmpty()) {
-                wrapper.put("ægtefælleCprNummer", personCivilStatusData.getSpouseCpr());
+                output.put("ægtefælleCprNummer", personCivilStatusData.getSpouseCpr());
             }
         }
 
@@ -77,52 +113,52 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             for (PersonProtectionData personProtectionDataItem : personProtectionData) {
             int protectionType = personProtectionDataItem.getProtectionType();
                 if (protectionType == 1) { // Person- og adressebeskyttelse
-                    wrapper.put("adressebeskyttelse", true);
+                    output.put("adressebeskyttelse", true);
                 }
             }
         }
 
         PersonForeignAddressData personForeignAddressData = dataItem.getForeignAddress();
         if (personForeignAddressData != null) {
-            wrapper.put("udlandsadresse", personForeignAddressData.join("\n"));
+            output.put("udlandsadresse", personForeignAddressData.join("\n"));
         }
 
         PersonEmigrationData personEmigrationData = dataItem.getMigration();
         if (personEmigrationData != null) {
-            wrapper.put("landekode", countryCodeMap.get(personEmigrationData.getCountryCode()));
-            wrapper.put("udrejsedato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            output.put("landekode", countryCodeMap.get(personEmigrationData.getCountryCode()));
+            // output.put("udrejsedato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
         }
 
         PersonCoreData personCoreData = dataItem.getCoreData();
         if (personCoreData != null) {
             if (personCoreData.getGender() != null) {
-                wrapper.put("køn", (personCoreData.getGender() == PersonCoreData.Koen.KVINDE) ? "K" : "M");
+                output.put("køn", (personCoreData.getGender() == PersonCoreData.Koen.KVINDE) ? "K" : "M");
             }
             if (personCoreData.getCprNumber() != null && !personCoreData.getCprNumber().isEmpty() && !entity.getPersonnummer().equals(personCoreData.getCprNumber())) {
-                wrapper.put("nytCprNummer", personCoreData.getCprNumber());
+                output.put("nytCprNummer", personCoreData.getCprNumber());
             }
         }
 
         PersonStatusData personStatusData = dataItem.getStatus();
         if (personStatusData != null) {
-            wrapper.put("statuskode", personStatusData.getStatus());
-            wrapper.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
+            output.put("statuskode", personStatusData.getStatus());
+            // output.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
         }
 
         PersonAddressData personAddressData = dataItem.getAddress();
         if (personAddressData != null) {
             int municipalityCode = personAddressData.getMunicipalityCode();
-            wrapper.put("myndighedskode", municipalityCode);
+            output.put("myndighedskode", municipalityCode);
             int roadCode = personAddressData.getRoadCode();
-            wrapper.put("vejkode", roadCode);
+            output.put("vejkode", roadCode);
 
             Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
 
-            wrapper.put("kommune", lookup.municipalityName);
+            output.put("kommune", lookup.municipalityName);
 
             String roadName = lookup.roadName;
             if (roadName != null) {
-                wrapper.put("adresse", this.getAddressFormatted(
+                output.put("adresse", this.getAddressFormatted(
                         roadName,
                         personAddressData.getHouseNumber(),
                         null,
@@ -132,35 +168,30 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 ));
             }
 
-            wrapper.put("postnummer", lookup.postalCode);
-            wrapper.put("bynavn", lookup.postalDistrict);
+            output.put("postnummer", lookup.postalCode);
+            output.put("bynavn", lookup.postalDistrict);
 
-            wrapper.put("stedkode", lookup.localityCode);
+            output.put("stedkode", lookup.localityCode);
 
             if (municipalityCode > 0 && municipalityCode < 900) {
-                wrapper.put("landekode", "DK");
+                output.put("landekode", "DK");
             } else if (municipalityCode > 900) {
-                wrapper.put("landekode", "GL");
+                output.put("landekode", "GL");
             }
         }
 
         PersonAddressConameData personAddressConameData = dataItem.getConame();
         if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
-            wrapper.put("postoks", personAddressConameData.getConame());
+            output.put("postboks", personAddressConameData.getConame());
         }
 
         PersonMoveMunicipalityData personMoveMunicipalityData = dataItem.getMoveMunicipality();
         if (personMoveMunicipalityData != null) {
             LocalDateTime moveInDate = personMoveMunicipalityData.getInDatetime();
             if (moveInDate != null) {
-                wrapper.put("tilflytningsdato", moveInDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
+                output.put("tilflytningsdato", moveInDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
             }
         }
-
-
-
-
-        return wrapper.getNode();
     }
 
     private OffsetDateTime getLastEffectTime(Collection<? extends Effect> effects) {

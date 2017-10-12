@@ -76,22 +76,20 @@ public class CvrService {
         );
         this.checkAndLogAccess(loggerHelper);
 
-
         final Session session = sessionManager.getSessionFactory().openSession();
         try {
-
-            OffsetDateTime now = OffsetDateTime.now();
-            session.enableFilter(Registration.FILTER_REGISTRATION_FROM).setParameter(Registration.FILTERPARAM_REGISTRATION_FROM, now);
-            session.enableFilter(Registration.FILTER_REGISTRATION_TO).setParameter(Registration.FILTERPARAM_REGISTRATION_TO, now);
-            session.enableFilter(Effect.FILTER_EFFECT_FROM).setParameter(Effect.FILTERPARAM_EFFECT_FROM, now);
-            session.enableFilter(Effect.FILTER_EFFECT_TO).setParameter(Effect.FILTERPARAM_EFFECT_TO, now);
-
             LookupService lookupService = new LookupService(session);
             companyOutputWrapper.setLookupService(lookupService);
 
             CompanyQuery companyQuery = new CompanyQuery();
             companyQuery.setCvrNumre(cvrNummer);
+            OffsetDateTime now = OffsetDateTime.now();
+            companyQuery.setRegistrationFrom(now);
+            companyQuery.setRegistrationTo(now);
+            companyQuery.setEffectFrom(now);
+            companyQuery.setEffectTo(now);
 
+            companyQuery.applyFilters(session);
             this.applyAreaRestrictionsToQuery(companyQuery, user);
 
             List<CompanyEntity> companyEntities = QueryManager.getAllEntities(session, companyQuery, CompanyEntity.class);
@@ -153,15 +151,7 @@ public class CvrService {
 
                 final Session entitySession = sessionManager.getSessionFactory().openSession();
                 try {
-
-                    OffsetDateTime now = OffsetDateTime.now();
-
                     CompanyQuery companyQuery = new CompanyQuery();
-
-                    companyQuery.setRegistrationFrom(now);
-                    companyQuery.setRegistrationTo(now);
-                    companyQuery.setEffectFrom(now);
-                    companyQuery.setEffectTo(now);
 
                     companyQuery.setRecordAfter(updatedSince);
 
@@ -170,7 +160,13 @@ public class CvrService {
                             companyQuery.addCvrNummer(cprNumber);
                         }
                     }
+                    OffsetDateTime now = OffsetDateTime.now();
+                    companyQuery.setRegistrationFrom(now);
+                    companyQuery.setRegistrationTo(now);
+                    companyQuery.setEffectFrom(now);
+                    companyQuery.setEffectTo(now);
 
+                    companyQuery.applyFilters(entitySession);
                     CvrService.this.applyAreaRestrictionsToQuery(companyQuery, user);
 
                     Stream<CompanyEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, companyQuery, CompanyEntity.class);
@@ -180,7 +176,6 @@ public class CvrService {
 
                         @Override
                         public void accept(CompanyEntity companyEntity) {
-                            companyEntity.forceLoad(entitySession);
                             try {
                                 if (!first) {
                                     outputStream.flush();

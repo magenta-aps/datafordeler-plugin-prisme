@@ -34,6 +34,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -75,18 +76,19 @@ public class CprService {
 
         final Session session = sessionManager.getSessionFactory().openSession();
         try {
-
-            OffsetDateTime now = OffsetDateTime.now();
-            session.enableFilter(Registration.FILTER_REGISTRATION_FROM).setParameter(Registration.FILTERPARAM_REGISTRATION_FROM, now);
-            session.enableFilter(Registration.FILTER_REGISTRATION_TO).setParameter(Registration.FILTERPARAM_REGISTRATION_TO, now);
-            session.enableFilter(Effect.FILTER_EFFECT_FROM).setParameter(Effect.FILTERPARAM_EFFECT_FROM, now);
-            session.enableFilter(Effect.FILTER_EFFECT_TO).setParameter(Effect.FILTERPARAM_EFFECT_TO, now);
-
             LookupService lookupService = new LookupService(session);
             personOutputWrapper.setLookupService(lookupService);
 
             PersonQuery personQuery = new PersonQuery();
             personQuery.setPersonnummer(cprNummer);
+
+            OffsetDateTime now = OffsetDateTime.now();
+            personQuery.setRegistrationFrom(now);
+            personQuery.setRegistrationTo(now);
+            personQuery.setEffectFrom(now);
+            personQuery.setEffectTo(now);
+
+            personQuery.applyFilters(session);
             this.applyAreaRestrictionsToQuery(personQuery, user);
 
             List<PersonEntity> personEntities = QueryManager.getAllEntities(session, personQuery, PersonEntity.class);
@@ -144,18 +146,10 @@ public class CprService {
                 LookupService lookupService = new LookupService(lookupSession);
                 personOutputWrapper.setLookupService(lookupService);
 
-
                 final Session entitySession = sessionManager.getSessionFactory().openSession();
                 try {
 
-                    OffsetDateTime now = OffsetDateTime.now();
-
                     PersonQuery personQuery = new PersonQuery();
-
-                    personQuery.setRegistrationFrom(now);
-                    personQuery.setRegistrationTo(now);
-                    personQuery.setEffectFrom(now);
-                    personQuery.setEffectTo(now);
 
                     personQuery.setRecordAfter(updatedSince);
 
@@ -165,6 +159,13 @@ public class CprService {
                         }
                     }
 
+                    OffsetDateTime now = OffsetDateTime.now();
+                    personQuery.setRegistrationFrom(now);
+                    personQuery.setRegistrationTo(now);
+                    personQuery.setEffectFrom(now);
+                    personQuery.setEffectTo(now);
+
+                    personQuery.applyFilters(entitySession);
                     CprService.this.applyAreaRestrictionsToQuery(personQuery, user);
 
                     Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, personQuery, PersonEntity.class);
@@ -174,7 +175,6 @@ public class CprService {
 
                         @Override
                         public void accept(PersonEntity personEntity) {
-                            personEntity.forceLoad(entitySession);
                             try {
                                 if (!first) {
                                     outputStream.flush();
@@ -238,7 +238,7 @@ public class CprService {
         } else if (node.isTextual()) {
             cprNumbers.add(nonDigits.matcher(node.asText()).replaceAll(""));
         //} else if (node.isNumber()) {
-        //    cprNumbers.add(String.format("%1$10s", node.asText()));
+        //    cprNumbers.add(String.format("%010d", node.isInt()));
         }
         return cprNumbers;
     }

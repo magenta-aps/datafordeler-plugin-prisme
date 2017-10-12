@@ -2,7 +2,7 @@ package dk.magenta.datafordeler.prisme;
 
 import dk.magenta.datafordeler.core.database.Identification;
 import dk.magenta.datafordeler.core.database.QueryManager;
-import dk.magenta.datafordeler.core.exception.DataFordelerException;
+import dk.magenta.datafordeler.core.util.DoubleHashMap;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityData;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEffect;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
@@ -20,6 +20,7 @@ import dk.magenta.datafordeler.gladdrreg.data.road.RoadQuery;
 import org.hibernate.Session;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 
 public class LookupService {
@@ -30,53 +31,62 @@ public class LookupService {
         this.session = session;
     }
 
+    private DoubleHashMap<Integer, Integer, Lookup> cache = new DoubleHashMap<>();
+
+
     public Lookup doLookup(int municipalityCode, int roadCode) {
-        Lookup lookup = new Lookup();
-        OffsetDateTime now = OffsetDateTime.now();
 
-        MunicipalityEntity municipalityEntity = this.getMunicipality(session, municipalityCode);
-        if (municipalityEntity != null) {
-            for (MunicipalityEffect municipalityEffect : municipalityEntity.getRegistrationAt(now).getEffectsAt(now)) {
-                for (MunicipalityData municipalityData : municipalityEffect.getDataItems()) {
-                    if (municipalityData.getName() != null) {
-                        lookup.municipalityName = municipalityData.getName();
-                        break;
-                    }
-                }
-            }
+        Lookup lookup = this.cache.get(municipalityCode, roadCode);
+        if (lookup == null) {
+            lookup = new Lookup();
+            this.cache.put(municipalityCode, roadCode, lookup);
 
-            RoadEntity roadEntity = this.getRoad(session, municipalityEntity, roadCode);
-            if (roadEntity != null) {
-                for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
-                    for (RoadData roadData : roadEffect.getDataItems()) {
-                        if (roadData.getName() != null) {
-                            lookup.roadName = roadData.getName();
+            OffsetDateTime now = OffsetDateTime.now();
+
+            MunicipalityEntity municipalityEntity = this.getMunicipality(session, municipalityCode);
+            if (municipalityEntity != null) {
+                for (MunicipalityEffect municipalityEffect : municipalityEntity.getRegistrationAt(now).getEffectsAt(now)) {
+                    for (MunicipalityData municipalityData : municipalityEffect.getDataItems()) {
+                        if (municipalityData.getName() != null) {
+                            lookup.municipalityName = municipalityData.getName();
                             break;
                         }
                     }
                 }
 
-
-                LocalityEntity localityEntity = this.getLocality(session, roadEntity);
-                if (localityEntity != null) {
-                    for (LocalityEffect localityEffect : localityEntity.getRegistrationAt(now).getEffectsAt(now)) {
-                        for (LocalityData localityData : localityEffect.getDataItems()) {
-                            if (localityData.getCode() > 0) {
-                                lookup.localityCode = localityData.getCode();
+                RoadEntity roadEntity = this.getRoad(session, municipalityEntity, roadCode);
+                if (roadEntity != null) {
+                    for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
+                        for (RoadData roadData : roadEffect.getDataItems()) {
+                            if (roadData.getName() != null) {
+                                lookup.roadName = roadData.getName();
                                 break;
                             }
                         }
                     }
 
 
-                    PostalCodeEntity postalCodeEntity = this.getPostalCode(session, localityEntity);
-                    if (postalCodeEntity != null) {
-                        for (PostalCodeEffect postalCodeEffect : postalCodeEntity.getRegistrationAt(now).getEffectsAt(now)) {
-                            for (PostalCodeData postalCodeData : postalCodeEffect.getDataItems()) {
-                                if (postalCodeData.getCode() > 0) {
-                                    lookup.postalCode = postalCodeData.getCode();
-                                    lookup.postalDistrict = postalCodeData.getName();
+                    LocalityEntity localityEntity = this.getLocality(session, roadEntity);
+                    if (localityEntity != null) {
+                        for (LocalityEffect localityEffect : localityEntity.getRegistrationAt(now).getEffectsAt(now)) {
+                            for (LocalityData localityData : localityEffect.getDataItems()) {
+                                if (localityData.getCode() > 0) {
+                                    lookup.localityCode = localityData.getCode();
                                     break;
+                                }
+                            }
+                        }
+
+
+                        PostalCodeEntity postalCodeEntity = this.getPostalCode(session, localityEntity);
+                        if (postalCodeEntity != null) {
+                            for (PostalCodeEffect postalCodeEffect : postalCodeEntity.getRegistrationAt(now).getEffectsAt(now)) {
+                                for (PostalCodeData postalCodeData : postalCodeEffect.getDataItems()) {
+                                    if (postalCodeData.getCode() > 0) {
+                                        lookup.postalCode = postalCodeData.getCode();
+                                        lookup.postalDistrict = postalCodeData.getName();
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -89,19 +99,31 @@ public class LookupService {
 
 
 
-    MunicipalityEntity getMunicipality(Session session, int municipalityCode) {
+    private HashMap<Integer, MunicipalityEntity> municipalityCache = new HashMap<>();
+
+    private MunicipalityEntity getMunicipality(Session session, int municipalityCode) {
+        MunicipalityEntity municipalityEntity;
+        if (municipalityCache.containsKey(municipalityCode)) {
+            municipalityEntity = municipalityCache.get(municipalityCode);
+            if (municipalityEntity != null) {
+                session.merge(municipalityEntity);
+            }
+            return municipalityEntity;
+        }
         try {
-            OffsetDateTime now = OffsetDateTime.now();
             MunicipalityQuery municipalityQuery = new MunicipalityQuery();
             municipalityQuery.setCode(Integer.toString(municipalityCode));
             List<MunicipalityEntity> municipalityEntities = QueryManager.getAllEntities(session, municipalityQuery, MunicipalityEntity.class);
-            return municipalityEntities.get(0);
+            municipalityEntity = municipalityEntities.get(0);
+            this.municipalityCache.put(municipalityCode, municipalityEntity);
+            return municipalityEntity;
         } catch (IndexOutOfBoundsException e) {
+            this.municipalityCache.put(municipalityCode, null);
         }
         return null;
     }
 
-    RoadEntity getRoad(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
+    private RoadEntity getRoad(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
         try {
             RoadQuery roadQuery = new RoadQuery();
             roadQuery.setCode(Integer.toString(roadCode));

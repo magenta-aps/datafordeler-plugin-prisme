@@ -35,6 +35,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -215,8 +216,6 @@ public class CvrTest {
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
 
-
-            System.out.println("RESPONSE: " + response.getBody());
         } finally {
             cleanup();
         }
@@ -272,7 +271,6 @@ public class CvrTest {
 
 
 
-
             body = objectMapper.createObjectNode();
             cvrList = objectMapper.createArrayNode();
             cvrList.add("10000000");
@@ -287,6 +285,7 @@ public class CvrTest {
             cvrList.add("10000009");
             body.set("cvrNumber", cvrList);
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            long tic = Instant.now().toEpochMilli();
             response = restTemplate.exchange(
                     "/prisme/cvr/1/",
                     HttpMethod.POST,

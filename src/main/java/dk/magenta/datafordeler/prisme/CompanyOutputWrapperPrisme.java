@@ -16,6 +16,7 @@ import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.List;
 
 public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
 
@@ -28,41 +29,55 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
     }
 
     @Override
-    public Object wrapResult(CompanyEntity input) {
+    public ObjectNode wrapResult(CompanyEntity input) {
 
         objectMapper = new ObjectMapper();
 
         // Root
-        ObjectNode root = objectMapper.createObjectNode();
+        NodeWrapper root = new NodeWrapper(objectMapper.createObjectNode());
         root.put("cvrNummer", input.getCvrNumber());
 
+        OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
         // Registrations
         for (CompanyRegistration companyRegistration : input.getRegistrations()) {
             for (CompanyEffect virkning : companyRegistration.getEffects()) {
-                for (CompanyBaseData companyBaseData : virkning.getDataItems()) {
-                    this.wrapDataObject(root, companyBaseData, this.lookupService);
+                OffsetDateTime effectFrom = virkning.getEffectFrom();
+                List<CompanyBaseData> dataItems = virkning.getDataItems();
+                for (CompanyBaseData companyBaseData : dataItems) {
+                    this.wrapDataObject(root, companyBaseData);
+                }
+                if (effectFrom != null) {
+                    if (effectFrom.isAfter(highestStatusTime)) {
+                        for (CompanyBaseData companyBaseData : dataItems) {
+                            if (companyBaseData.getStatusCode() != null) {
+                                highestStatusTime = effectFrom;
+                            }
+                        }
+                    }
                 }
             }
         }
-        return root;
+        if (highestStatusTime.isAfter(OffsetDateTime.MIN)) {
+            root.put("statuskodedato", highestStatusTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
+        return root.getNode();
     }
 
-    protected ObjectNode wrapDataObject(ObjectNode output, CompanyBaseData dataItem, LookupService lookupService) {
-        NodeWrapper wrapper = new NodeWrapper(output);
+    protected void wrapDataObject(NodeWrapper output, CompanyBaseData dataItem) {
 
-        wrapper.put("navn", dataItem.getCompanyName());
+        output.put("navn", dataItem.getCompanyName());
 
         Industry industry = dataItem.getPrimaryIndustry();
         if (industry != null) {
-            // wrapper.put("brancheKode", industry.getIndustryCode());
-            wrapper.put("forretningsområde", industry.getIndustryText());
+            // output.put("brancheKode", industry.getIndustryCode());
+            output.put("forretningsområde", industry.getIndustryText());
         }
 
         String statusCode = dataItem.getStatusCode();
-        wrapper.put("statuskode", statusCode);
-        if (statusCode != null) {
-            wrapper.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects()));
-        }
+        output.put("statuskode", statusCode);
+        // if (statusCode != null) {
+        //     output.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects()));
+        // }
 
         Address address = dataItem.getPostalAddress();
         if (address == null) {
@@ -73,51 +88,31 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
             int roadCode = address.getRoadCode();
             Municipality municipality = address.getMunicipality();
             if (municipality != null) {
-                wrapper.put("myndighedskode", municipality.getCode());
-                wrapper.put("kommune", municipality.getName());
+                output.put("myndighedskode", municipality.getCode());
+                output.put("kommune", municipality.getName());
                 municipalityCode = municipality.getCode();
             }
-            wrapper.put("vejkode", roadCode);
+            output.put("vejkode", roadCode);
             if (municipalityCode > 0 && roadCode > 0 && this.lookupService != null) {
                 Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
                 if (lookup.localityCode != 0) {
-                    wrapper.put("stedkode", lookup.localityCode);
+                    output.put("stedkode", lookup.localityCode);
                 }
             }
-            wrapper.put("adresse", address.getAddressFormatted());
+            output.put("adresse", address.getAddressFormatted());
             if (address.getPostBox() > 0) {
-                wrapper.put("postboks", address.getPostBox());
+                output.put("postboks", address.getPostBox());
             }
 
             PostCode postCode = address.getPost();
             if (postCode != null) {
-                wrapper.put("postnummer", postCode.getPostCode());
-                wrapper.put("bynavn", postCode.getPostDistrict());
+                output.put("postnummer", postCode.getPostCode());
+                output.put("bynavn", postCode.getPostDistrict());
             }
 
-            wrapper.put("landekode", address.getCountryCode());
+            output.put("landekode", address.getCountryCode());
         }
 
-        return wrapper.getNode();
-    }
-
-    private OffsetDateTime getLastEffectTime(Collection<? extends Effect> effects) {
-        OffsetDateTime latest = OffsetDateTime.MIN;
-        for (Effect effect : effects) {
-            OffsetDateTime start = effect.getEffectFrom();
-            if (start.isAfter(latest)) {
-                latest = start;
-            }
-        }
-        return latest;
-    }
-
-    private String getLastEffectTimeFormatted(Collection<? extends Effect> effects) {
-        OffsetDateTime statusKodeUpdated = this.getLastEffectTime(effects);
-        if (statusKodeUpdated.isAfter(OffsetDateTime.MIN)) {
-            return statusKodeUpdated.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        }
-        return null;
     }
 
 }
