@@ -35,6 +35,8 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         NodeWrapper root = new NodeWrapper(objectMapper.createObjectNode());
         root.put("cprNummer", input.getPersonnummer());
 
+        root.put("adressebeskyttelse", false);
+
         OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
         OffsetDateTime highestCivilStatusTime = OffsetDateTime.MIN;
         OffsetDateTime highestEmigrationTime = OffsetDateTime.MIN;
@@ -111,7 +113,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         Collection<PersonProtectionData> personProtectionData = dataItem.getProtection();
         if (personProtectionData != null && !personProtectionData.isEmpty()) {
             for (PersonProtectionData personProtectionDataItem : personProtectionData) {
-            int protectionType = personProtectionDataItem.getProtectionType();
+                int protectionType = personProtectionDataItem.getProtectionType();
                 if (protectionType == 1) { // Person- og adressebeskyttelse
                     output.put("adressebeskyttelse", true);
                 }
@@ -150,28 +152,29 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             int municipalityCode = personAddressData.getMunicipalityCode();
             output.put("myndighedskode", municipalityCode);
             int roadCode = personAddressData.getRoadCode();
-            output.put("vejkode", roadCode);
+            if (roadCode > 0) {
+                output.put("vejkode", roadCode);
 
-            Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
+                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
 
-            output.put("kommune", lookup.municipalityName);
+                output.put("kommune", lookup.municipalityName);
 
-            String roadName = lookup.roadName;
-            if (roadName != null) {
-                output.put("adresse", this.getAddressFormatted(
-                        roadName,
-                        personAddressData.getHouseNumber(),
-                        null,
-                        null, null,
-                        personAddressData.getFloor(),
-                        personAddressData.getDoor()
-                ));
+                String roadName = lookup.roadName;
+                if (roadName != null) {
+                    output.put("adresse", this.getAddressFormatted(
+                            roadName,
+                            personAddressData.getHouseNumber(),
+                            null,
+                            null, null,
+                            personAddressData.getFloor(),
+                            personAddressData.getDoor()
+                    ));
+                }
+
+                output.put("postnummer", lookup.postalCode);
+                output.put("bynavn", lookup.postalDistrict);
+                output.put("stedkode", lookup.localityCode);
             }
-
-            output.put("postnummer", lookup.postalCode);
-            output.put("bynavn", lookup.postalDistrict);
-
-            output.put("stedkode", lookup.localityCode);
 
             if (municipalityCode > 0 && municipalityCode < 900) {
                 output.put("landekode", "DK");
@@ -242,7 +245,12 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             }
 
         }
-        return out.toString();
+        String result = out.toString().trim();
+        if (result.isEmpty()) {
+            return null;
+        } else {
+            return result;
+        }
     }
 
     private String emptyIfNull(String text) {

@@ -92,14 +92,19 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
                 output.put("kommune", municipality.getName());
                 municipalityCode = municipality.getCode();
             }
-            output.put("vejkode", roadCode);
-            if (municipalityCode > 0 && roadCode > 0 && this.lookupService != null) {
-                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
-                if (lookup.localityCode != 0) {
-                    output.put("stedkode", lookup.localityCode);
+            if (roadCode > 0) {
+                output.put("vejkode", roadCode);
+                if (municipalityCode > 0 && this.lookupService != null) {
+                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
+                    if (lookup.localityCode != 0) {
+                        output.put("stedkode", lookup.localityCode);
+                    }
                 }
             }
-            output.put("adresse", address.getAddressFormatted());
+            String addressFormatted = address.getAddressFormatted();
+            if (addressFormatted != null && !addressFormatted.isEmpty()) {
+                output.put("adresse", addressFormatted);
+            }
             if (address.getPostBox() > 0) {
                 output.put("postboks", address.getPostBox());
             }
@@ -109,6 +114,7 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
                 output.put("postnummer", postCode.getPostCode());
                 output.put("bynavn", postCode.getPostDistrict());
             }
+
 
             output.put("landekode", address.getCountryCode());
         }
