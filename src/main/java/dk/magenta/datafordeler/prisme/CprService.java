@@ -237,8 +237,8 @@ public class CprService {
             }
         } else if (node.isTextual()) {
             cprNumbers.add(nonDigits.matcher(node.asText()).replaceAll(""));
-        //} else if (node.isNumber()) {
-        //    cprNumbers.add(String.format("%010d", node.isInt()));
+        } else if (node.isNumber()) {
+            cprNumbers.add(String.format("%010d", node.isInt()));
         }
         return cprNumbers;
     }
