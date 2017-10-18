@@ -15,6 +15,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
@@ -85,6 +87,8 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         }
         return root.getNode();
     }
+
+    Pattern postboxExtract = Pattern.compile("bo(?:x|(?:ks))\\s*([0-9]+)");
 
     protected void wrapDataObject(NodeWrapper output, PersonBaseData dataItem, PersonEntity entity) {
 
@@ -185,7 +189,15 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
         PersonAddressConameData personAddressConameData = dataItem.getConame();
         if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
-            output.put("postboks", personAddressConameData.getConame());
+            String coname = personAddressConameData.getConame();
+            if (coname != null) {
+                coname = coname.toLowerCase();
+                Matcher m = postboxExtract.matcher(coname);
+                if (m.find()) {
+                    String postbox = m.group(1);
+                    output.put("postboks", postbox);
+                }
+            }
         }
 
         PersonMoveMunicipalityData personMoveMunicipalityData = dataItem.getMoveMunicipality();
