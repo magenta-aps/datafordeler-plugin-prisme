@@ -245,9 +245,11 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         }
 
         if (houseNumberFrom != null && !houseNumberFrom.isEmpty()) {
+            houseNumberFrom = houseNumberFrom.replaceAll("^0+", "");
             out.append(" " + houseNumberFrom + emptyIfNull(letterFrom));
             if (houseNumberTo != null && !houseNumberTo.isEmpty()) {
                 out.append("-");
+                houseNumberTo = houseNumberTo.replaceAll("^0+", "");
                 if (houseNumberTo.equals(houseNumberFrom)) {
                     out.append(emptyIfNull(letterTo));
                 } else {
@@ -275,14 +277,10 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         }
     }
 
-    private static Pattern bnrPattern = Pattern.compile("^b-?(.+)$", Pattern.CASE_INSENSITIVE);
     private static String formatBNumber(String bnr) {
-        Matcher m = bnrPattern.matcher(bnr);
-        if (m.find()) {
-            return "B-" + m.group(1);
-        } else {
-            return "B-" + bnr;
-        }
+        bnr = bnr.replaceAll("^0+", "");
+        bnr = bnr.replaceAll("^B-?", "");
+        return "B-" + bnr;
     }
 
     private String emptyIfNull(String text) {
