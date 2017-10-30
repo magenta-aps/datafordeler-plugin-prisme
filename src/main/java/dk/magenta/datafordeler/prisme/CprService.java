@@ -136,6 +136,26 @@ public class CprService {
         );
         this.checkAndLogAccess(loggerHelper);
 
+        PersonQuery personQuery = new PersonQuery();
+        personQuery.setPageSize(Integer.MAX_VALUE);
+
+        personQuery.setRecordAfter(updatedSince);
+
+        if (cprNumbers != null) {
+            for (String cprNumber : cprNumbers) {
+                personQuery.addPersonnummer(cprNumber);
+            }
+        }
+        if (personQuery.getPersonnumre().isEmpty()) {
+            throw new InvalidClientInputException("Please specify at least one CPR number");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        personQuery.setRegistrationFrom(now);
+        personQuery.setRegistrationTo(now);
+        personQuery.setEffectFrom(now);
+        personQuery.setEffectTo(now);
+
         return new StreamingResponseBody() {
 
             @Override
@@ -147,26 +167,6 @@ public class CprService {
 
                 final Session entitySession = sessionManager.getSessionFactory().openSession();
                 try {
-
-                    PersonQuery personQuery = new PersonQuery();
-                    personQuery.setPageSize(Integer.MAX_VALUE);
-
-                    personQuery.setRecordAfter(updatedSince);
-
-                    if (cprNumbers != null) {
-                        for (String cprNumber : cprNumbers) {
-                            personQuery.addPersonnummer(cprNumber);
-                        }
-                    }
-                    if (personQuery.getPersonnumre().isEmpty()) {
-                        throw new InvalidClientInputException("Please specify at least one CPR number");
-                    }
-
-                    OffsetDateTime now = OffsetDateTime.now();
-                    personQuery.setRegistrationFrom(now);
-                    personQuery.setRegistrationTo(now);
-                    personQuery.setEffectFrom(now);
-                    personQuery.setEffectTo(now);
 
                     personQuery.applyFilters(entitySession);
                     CprService.this.applyAreaRestrictionsToQuery(personQuery, user);
