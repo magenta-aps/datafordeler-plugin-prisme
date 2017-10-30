@@ -160,6 +160,10 @@ public class CvrService {
                             companyQuery.addCvrNummer(cprNumber);
                         }
                     }
+                    if (companyQuery.getCvrNumre().isEmpty()) {
+                        throw new InvalidClientInputException("Please specify at least one CVR number");
+                    }
+
                     OffsetDateTime now = OffsetDateTime.now();
                     companyQuery.setRegistrationFrom(now);
                     companyQuery.setRegistrationTo(now);

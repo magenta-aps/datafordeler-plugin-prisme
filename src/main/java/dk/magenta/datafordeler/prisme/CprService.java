@@ -158,6 +158,9 @@ public class CprService {
                             personQuery.addPersonnummer(cprNumber);
                         }
                     }
+                    if (personQuery.getPersonnumre().isEmpty()) {
+                        throw new InvalidClientInputException("Please specify at least one CPR number");
+                    }
 
                     OffsetDateTime now = OffsetDateTime.now();
                     personQuery.setRegistrationFrom(now);
