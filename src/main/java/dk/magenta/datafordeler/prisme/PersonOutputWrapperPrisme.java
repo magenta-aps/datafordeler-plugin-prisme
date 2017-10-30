@@ -8,7 +8,6 @@ import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
 import dk.magenta.datafordeler.cpr.data.person.data.*;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
@@ -42,6 +41,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
         OffsetDateTime highestCivilStatusTime = OffsetDateTime.MIN;
         OffsetDateTime highestEmigrationTime = OffsetDateTime.MIN;
+        OffsetDateTime highestAddressTime = OffsetDateTime.MIN;
         // Registrations
         for (PersonRegistration personRegistration : input.getRegistrations()) {
             for (PersonEffect virkning : personRegistration.getEffects()) {
@@ -73,6 +73,13 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                             }
                         }
                     }
+                    if (effectFrom.isAfter(highestAddressTime)) {
+                        for (PersonBaseData personBaseData : dataItems) {
+                            if (personBaseData.getAddress() != null) {
+                                highestAddressTime = effectFrom;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -84,6 +91,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         }
         if (highestEmigrationTime.isAfter(OffsetDateTime.MIN)) {
             root.put("udrejsedato", highestEmigrationTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        }
+        if (highestAddressTime.isAfter(OffsetDateTime.MIN)) {
+            root.put("tilflytningsdato", highestAddressTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
         }
         return root.getNode();
     }
@@ -197,14 +207,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                     String postbox = m.group(1);
                     output.put("postboks", postbox);
                 }
-            }
-        }
-
-        PersonMoveMunicipalityData personMoveMunicipalityData = dataItem.getMoveMunicipality();
-        if (personMoveMunicipalityData != null) {
-            LocalDateTime moveInDate = personMoveMunicipalityData.getInDatetime();
-            if (moveInDate != null) {
-                output.put("tilflytningsdato", moveInDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
             }
         }
     }
