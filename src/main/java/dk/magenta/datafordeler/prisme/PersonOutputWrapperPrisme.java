@@ -173,6 +173,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
                 output.put("kommune", lookup.municipalityName);
 
+                String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
                 String roadName = lookup.roadName;
                 if (roadName != null) {
                     output.put("adresse", this.getAddressFormatted(
@@ -181,8 +182,11 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                             null,
                             null, null,
                             personAddressData.getFloor(),
-                            personAddressData.getDoor()
+                            personAddressData.getDoor(),
+                            buildingNumber
                     ));
+                } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
+                    output.put("adresse", formatBNumber(buildingNumber));
                 }
 
                 output.put("postnummer", lookup.postalCode);
@@ -230,7 +234,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         return null;
     }
 
-    public String getAddressFormatted(String roadName, String houseNumberFrom, String houseNumberTo, String letterFrom, String letterTo, String floor, String door) {
+    public String getAddressFormatted(String roadName, String houseNumberFrom, String houseNumberTo, String letterFrom, String letterTo, String floor, String door, String bNumber) {
 //        if (this.addressText != null) {
 //            return this.addressText;
 //        }
@@ -257,13 +261,27 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                     out.append(" " + door);
                 }
             }
-
         }
+
+        if (bNumber != null && !bNumber.isEmpty()) {
+            out.append(" (" + formatBNumber(bNumber) + ")");
+        }
+
         String result = out.toString().trim();
         if (result.isEmpty()) {
             return null;
         } else {
             return result;
+        }
+    }
+
+    private static Pattern bnrPattern = Pattern.compile("^b-?(.+)$", Pattern.CASE_INSENSITIVE);
+    private static String formatBNumber(String bnr) {
+        Matcher m = bnrPattern.matcher(bnr);
+        if (m.find()) {
+            return "B-" + m.group(1);
+        } else {
+            return "B-" + bnr;
         }
     }
 

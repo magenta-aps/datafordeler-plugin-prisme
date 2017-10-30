@@ -34,7 +34,6 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -150,6 +149,7 @@ public class CprService {
                 try {
 
                     PersonQuery personQuery = new PersonQuery();
+                    personQuery.setPageSize(Integer.MAX_VALUE);
 
                     personQuery.setRecordAfter(updatedSince);
 
