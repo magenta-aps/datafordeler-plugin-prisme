@@ -50,7 +50,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 for (PersonBaseData personBaseData : virkning.getDataItems()) {
                     this.wrapDataObject(root, personBaseData, input);
                 }
-
                 if (effectFrom != null) {
                     if (effectFrom.isAfter(highestStatusTime)) {
                         for (PersonBaseData personBaseData : dataItems) {
@@ -98,7 +97,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         return root.getNode();
     }
 
-    Pattern postboxExtract = Pattern.compile("bo(?:x|(?:ks))\\s*([0-9]+)");
+    Pattern postboxExtract = Pattern.compile("bo(?:x|(?:ks))\\s*(\\d+)");
 
     protected void wrapDataObject(NodeWrapper output, PersonBaseData dataItem, PersonEntity entity) {
 
@@ -208,8 +207,10 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 coname = coname.toLowerCase();
                 Matcher m = postboxExtract.matcher(coname);
                 if (m.find()) {
-                    String postbox = m.group(1);
-                    output.put("postboks", postbox);
+                    try {
+                        int postbox = Integer.parseInt(m.group(1), 10);
+                        output.put("postboks", postbox);
+                    } catch (NumberFormatException e) {}
                 }
             }
         }
