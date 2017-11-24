@@ -97,10 +97,12 @@ public class CprTest {
                 line = line.substring(0, 3) + newCpr + line.substring(13);
                 sb.add(line);
             }
-            List<PersonRegistration> registrations = personEntityManager.parseRegistration(sb.toString(), importMetadata);
-            for (PersonRegistration registration : registrations) {
+            ByteArrayInputStream bais = new ByteArrayInputStream(sb.toString().getBytes("UTF-8"));
+            List<PersonRegistration> registrations = personEntityManager.parseRegistration(bais, importMetadata);
+            bais.close();
+            /*for (PersonRegistration registration : registrations) {
                 createdEntities.add(registration.getEntity());
-            }
+            }*/
         }
     }
 
