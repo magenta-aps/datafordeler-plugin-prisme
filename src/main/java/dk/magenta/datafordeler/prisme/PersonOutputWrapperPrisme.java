@@ -165,10 +165,11 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             int municipalityCode = personAddressData.getMunicipalityCode();
             output.put("myndighedskode", municipalityCode);
             int roadCode = personAddressData.getRoadCode();
+            String houseNumber = personAddressData.getHouseNumber();
             if (roadCode > 0) {
                 output.put("vejkode", roadCode);
 
-                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
+                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
 
                 output.put("kommune", lookup.municipalityName);
 

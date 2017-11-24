@@ -83,11 +83,8 @@ public class CvrTest {
         for (JsonNode item : itemList) {
             String source = objectMapper.writeValueAsString(item.get("_source").get("Vrvirksomhed"));
             ByteArrayInputStream bais = new ByteArrayInputStream(source.getBytes("UTF-8"));
-            List<? extends Registration> registrations = companyEntityManager.parseRegistration(bais, importMetadata);
+            companyEntityManager.parseRegistration(bais, importMetadata);
             bais.close();
-            /*for (Registration registration : registrations) {
-                createdEntities.add(registration.getEntity());
-            }*/
         }
     }
 
@@ -99,13 +96,10 @@ public class CvrTest {
         ImportMetadata importMetadata = new ImportMetadata();
         String testData = InputStreamReader.readInputStream(CvrTest.class.getResourceAsStream("/company_in.json"));
         for (int i = start; i < count + start; i++) {
-            String altered = testData.replaceAll("25052943", "1" + String.format("%07d", i));
+            String altered = testData.replaceAll("25052943", "1" + String.format("%07d", i)).replaceAll("\n", "");
             ByteArrayInputStream bais = new ByteArrayInputStream(altered.getBytes("UTF-8"));
-            List<? extends Registration> registrations = companyEntityManager.parseRegistration(bais, importMetadata);
+            companyEntityManager.parseRegistration(bais, importMetadata);
             bais.close();
-            /*for (Registration registration : registrations) {
-                createdEntities.add(registration.getEntity());
-            }*/
         }
     }
 
