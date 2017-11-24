@@ -33,7 +33,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.*;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -74,11 +73,14 @@ public class CprTest {
     public void loadPerson() throws Exception {
         InputStream testData = CprTest.class.getResourceAsStream("/person.txt");
         ImportMetadata importMetadata = new ImportMetadata();
-        List<PersonRegistration> registrations = personEntityManager.parseRegistration(testData, importMetadata);
+        Session session = sessionManager.getSessionFactory().openSession();
+        importMetadata.setSession(session);
+        Transaction transaction = session.beginTransaction();
+        importMetadata.setTransactionInProgress(true);
+        personEntityManager.parseRegistration(testData, importMetadata);
+        transaction.commit();
+        session.close();
         testData.close();
-        for (PersonRegistration registration : registrations) {
-            createdEntities.add(registration.getEntity());
-        }
     }
 
     public void loadManyPersons(int count) throws Exception {
@@ -87,6 +89,10 @@ public class CprTest {
 
     public void loadManyPersons(int count, int start) throws Exception {
         ImportMetadata importMetadata = new ImportMetadata();
+        Session session = sessionManager.getSessionFactory().openSession();
+        importMetadata.setSession(session);
+        Transaction transaction = session.beginTransaction();
+        importMetadata.setTransactionInProgress(true);
         String testData = InputStreamReader.readInputStream(CprTest.class.getResourceAsStream("/person.txt"));
         String[] lines = testData.split("\n");
         for (int i = start; i < count + start; i++) {
@@ -97,11 +103,12 @@ public class CprTest {
                 line = line.substring(0, 3) + newCpr + line.substring(13);
                 sb.add(line);
             }
-            List<PersonRegistration> registrations = personEntityManager.parseRegistration(sb.toString(), importMetadata);
-            for (PersonRegistration registration : registrations) {
-                createdEntities.add(registration.getEntity());
-            }
+            ByteArrayInputStream bais = new ByteArrayInputStream(sb.toString().getBytes("UTF-8"));
+            List<PersonRegistration> registrations = personEntityManager.parseRegistration(bais, importMetadata);
+            bais.close();
         }
+        transaction.commit();
+        session.close();
     }
 
     private void loadLocality(Session session) throws DataFordelerException, IOException {
