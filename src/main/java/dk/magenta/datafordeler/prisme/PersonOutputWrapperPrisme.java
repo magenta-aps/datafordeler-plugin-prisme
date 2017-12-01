@@ -245,6 +245,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         if (roadName != null) {
             out.append(roadName);
         }
+        if (door != null) {
+            door = door.replaceAll("^0+", "");
+        }
 
         if (houseNumberFrom != null && !houseNumberFrom.isEmpty()) {
             houseNumberFrom = houseNumberFrom.replaceAll("^0+", "");
