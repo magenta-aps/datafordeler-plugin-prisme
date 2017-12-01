@@ -267,7 +267,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 if (door != null && !door.isEmpty()) {
                     out.append(" " + door);
                 }
-            } else if (door != null && door.isEmpty()) {
+            } else if (door != null && !door.isEmpty()) {
                 out.append(", " + door);
             }
         }
