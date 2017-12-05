@@ -110,8 +110,12 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             if (!nameData.getMiddleName().isEmpty()) {
                 nameJoiner.add(nameData.getMiddleName());
             }
-            output.put("fornavn", nameJoiner.toString());
-            output.put("efternavn", nameData.getLastName());
+            if (nameJoiner.length() > 0) {
+                output.put("fornavn", nameJoiner.toString());
+            }
+            if (nameData.getLastName() != null && !nameData.getLastName().isEmpty()) {
+                output.put("efternavn", nameData.getLastName());
+            }
         }
 
         PersonCivilStatusData personCivilStatusData = dataItem.getCivilStatus();
@@ -267,7 +271,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 if (door != null && !door.isEmpty()) {
                     out.append(" " + door);
                 }
-            } else if (door != null && door.isEmpty()) {
+            } else if (door != null && !door.isEmpty()) {
                 out.append(", " + door);
             }
         }
