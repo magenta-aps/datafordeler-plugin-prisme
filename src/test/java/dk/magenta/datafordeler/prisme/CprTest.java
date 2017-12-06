@@ -76,7 +76,7 @@ public class CprTest {
         importMetadata.setSession(session);
         Transaction transaction = session.beginTransaction();
         importMetadata.setTransactionInProgress(true);
-        personEntityManager.parseRegistration(testData, importMetadata);
+        personEntityManager.parseData(testData, importMetadata);
         transaction.commit();
         session.close();
         testData.close();
@@ -103,7 +103,7 @@ public class CprTest {
                 sb.add(line);
             }
             ByteArrayInputStream bais = new ByteArrayInputStream(sb.toString().getBytes("UTF-8"));
-            personEntityManager.parseRegistration(bais, importMetadata);
+            personEntityManager.parseData(bais, importMetadata);
             bais.close();
         }
         transaction.commit();
