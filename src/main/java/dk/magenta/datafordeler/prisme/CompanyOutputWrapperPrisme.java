@@ -2,7 +2,6 @@ package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
 import dk.magenta.datafordeler.cvr.data.company.CompanyBaseData;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEffect;
@@ -15,7 +14,6 @@ import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collection;
 import java.util.List;
 
 public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
@@ -38,7 +36,6 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
         root.put("cvrNummer", input.getCvrNumber());
 
         OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
-        // Registrations
         for (CompanyRegistration companyRegistration : input.getRegistrations()) {
             for (CompanyEffect virkning : companyRegistration.getEffects()) {
                 OffsetDateTime effectFrom = virkning.getEffectFrom();
@@ -114,7 +111,6 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
                 output.put("postnummer", postCode.getPostCode());
                 output.put("bynavn", postCode.getPostDistrict());
             }
-
 
             output.put("landekode", address.getCountryCode());
         }

@@ -83,11 +83,6 @@ public class CvrService {
 
             CompanyQuery companyQuery = new CompanyQuery();
             companyQuery.setCvrNumre(cvrNummer);
-            OffsetDateTime now = OffsetDateTime.now();
-            companyQuery.setRegistrationFrom(now);
-            companyQuery.setRegistrationTo(now);
-            companyQuery.setEffectFrom(now);
-            companyQuery.setEffectTo(now);
 
             companyQuery.applyFilters(session);
             this.applyAreaRestrictionsToQuery(companyQuery, user);
@@ -151,12 +146,6 @@ public class CvrService {
         if (companyQuery.getCvrNumre().isEmpty()) {
             throw new InvalidClientInputException("Please specify at least one CVR number");
         }
-
-        OffsetDateTime now = OffsetDateTime.now();
-        companyQuery.setRegistrationFrom(now);
-        companyQuery.setRegistrationTo(now);
-        companyQuery.setEffectFrom(now);
-        companyQuery.setEffectTo(now);
 
         return new StreamingResponseBody() {
 
