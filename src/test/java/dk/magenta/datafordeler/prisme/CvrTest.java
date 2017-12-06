@@ -83,7 +83,7 @@ public class CvrTest {
         for (JsonNode item : itemList) {
             String source = objectMapper.writeValueAsString(item.get("_source").get("Vrvirksomhed"));
             ByteArrayInputStream bais = new ByteArrayInputStream(source.getBytes("UTF-8"));
-            companyEntityManager.parseRegistration(bais, importMetadata);
+            companyEntityManager.parseData(bais, importMetadata);
             bais.close();
         }
     }
@@ -98,7 +98,7 @@ public class CvrTest {
         for (int i = start; i < count + start; i++) {
             String altered = testData.replaceAll("25052943", "1" + String.format("%07d", i)).replaceAll("\n", "");
             ByteArrayInputStream bais = new ByteArrayInputStream(altered.getBytes("UTF-8"));
-            companyEntityManager.parseRegistration(bais, importMetadata);
+            companyEntityManager.parseData(bais, importMetadata);
             bais.close();
         }
     }
