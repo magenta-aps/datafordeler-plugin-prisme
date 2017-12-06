@@ -106,7 +106,7 @@ public class CvrTest {
     private void loadLocality(Session session) throws DataFordelerException, IOException {
         InputStream testData = CvrTest.class.getResourceAsStream("/locality.json");
         LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
-        List<? extends Registration> regs = localityEntityManager.parseRegistration(testData, new ImportMetadata());
+        List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
         for (Registration registration : regs) {
             LocalityRegistration localityRegistration = (LocalityRegistration) registration;
@@ -118,7 +118,7 @@ public class CvrTest {
     private void loadRoad(Session session) throws DataFordelerException, IOException {
         InputStream testData = CvrTest.class.getResourceAsStream("/road.json");
         RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
-        List<? extends Registration> regs = roadEntityManager.parseRegistration(testData, new ImportMetadata());
+        List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
         for (Registration registration : regs) {
             RoadRegistration roadRegistration = (RoadRegistration) registration;
@@ -130,7 +130,7 @@ public class CvrTest {
     private void loadMunicipality(Session session) throws DataFordelerException, IOException {
         InputStream testData = CvrTest.class.getResourceAsStream("/municipality.json");
         MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
-        List<? extends Registration> regs = municipalityEntityManager.parseRegistration(testData, new ImportMetadata());
+        List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
         for (Registration registration : regs) {
             MunicipalityRegistration municipalityRegistration = (MunicipalityRegistration) registration;
