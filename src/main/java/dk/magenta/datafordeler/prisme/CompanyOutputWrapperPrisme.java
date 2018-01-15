@@ -111,6 +111,11 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
             }
 
             output.put("landekode", address.getCountryCode());
+
+            String coName = address.getCoName();
+            if (coName != null) {
+                output.put("co", coName);
+            }
         }
 
     }
