@@ -72,7 +72,9 @@ public class LookupService {
                     }
 
                     RoadEntity roadEntity = this.getRoadGR(session, municipalityEntity, roadCode);
-                    if (roadEntity != null) {
+                    if (roadEntity == null) {
+                        this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
+                    } else {
                         for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
                             for (RoadData roadData : roadEffect.getDataItems()) {
                                 if (roadData.getName() != null) {
@@ -82,7 +84,6 @@ public class LookupService {
                             }
                             if (lookup.roadName != null) break;
                         }
-
 
                         LocalityEntity localityEntity = this.getLocalityGR(session, roadEntity);
                         if (localityEntity != null) {
@@ -98,15 +99,7 @@ public class LookupService {
 
 
                             if (lookup.localityCode == 600) {
-                                dk.magenta.datafordeler.cpr.data.road.RoadEntity roadEntityCpr = this.getRoadDK(session, municipalityCode, roadCode);
-                                if (roadEntity != null) {
-                                    lookup.roadName = this.getRoadNameDK(roadEntityCpr);
-                                    PostCode postCode = this.getRoadPostalCodeDK(roadEntityCpr, houseNumber);
-                                    if (postCode != null) {
-                                        lookup.postalCode = postCode.getPostnummer();
-                                        lookup.postalDistrict = postCode.getPostdistrikt();
-                                    }
-                                }
+                                this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
                             } else {
                                 PostalCodeEntity postalCodeEntity = this.getPostalCodeGR(session, localityEntity);
                                 if (postalCodeEntity != null) {
@@ -134,19 +127,23 @@ public class LookupService {
                         lookup.municipalityName = lookup.municipalityName.substring(0, 1).toUpperCase() + lookup.municipalityName.substring(1).toLowerCase();
                     }
                 }
+                this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
 
-                dk.magenta.datafordeler.cpr.data.road.RoadEntity roadEntity = this.getRoadDK(session, municipalityCode, roadCode);
-                if (roadEntity != null) {
-                    lookup.roadName = this.getRoadNameDK(roadEntity);
-                    PostCode postCode = this.getRoadPostalCodeDK(roadEntity, houseNumber);
-                    if (postCode != null) {
-                        lookup.postalCode = postCode.getPostnummer();
-                        lookup.postalDistrict = postCode.getPostdistrikt();
-                    }
-                }
             }
         }
         return lookup;
+    }
+
+    private void populateRoadDK(Lookup lookup, Session session, int municipalityCode, int roadCode, String houseNumber) {
+        dk.magenta.datafordeler.cpr.data.road.RoadEntity roadEntity = this.getRoadDK(session, municipalityCode, roadCode);
+        if (roadEntity != null) {
+            lookup.roadName = this.getRoadNameDK(roadEntity);
+            PostCode postCode = this.getRoadPostalCodeDK(roadEntity, houseNumber);
+            if (postCode != null) {
+                lookup.postalCode = postCode.getPostnummer();
+                lookup.postalDistrict = postCode.getPostdistrikt();
+            }
+        }
     }
 
     private HashMap<Integer, Municipality> municipalityCacheDK = new HashMap<>();
@@ -220,6 +217,15 @@ public class LookupService {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    } else {
+                        List<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
+                        if (postcodeData != null && !postcodeData.isEmpty()) {
+                            for (RoadPostcodeData postcode : postcodeData) {
+                                if (postcode.getPostCode() != null) {
+                                    return postcode.getPostCode();
                                 }
                             }
                         }
