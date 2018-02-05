@@ -33,6 +33,8 @@ import java.util.regex.Pattern;
 
 public class LookupService {
 
+    public static final boolean COMPENSATE_2018_MUNICIPALITY_SPLIT = true;
+
     private Session session;
 
     private static Pattern houseNumberPattern = Pattern.compile("(\\d+)(.*)");
@@ -243,6 +245,9 @@ public class LookupService {
     private HashMap<Integer, MunicipalityEntity> municipalityCacheGR = new HashMap<>();
 
     private MunicipalityEntity getMunicipalityGR(Session session, int municipalityCode) {
+        if (COMPENSATE_2018_MUNICIPALITY_SPLIT && (municipalityCode == 959 || municipalityCode == 960)) {
+            municipalityCode = 958;
+        }
         MunicipalityEntity municipalityEntity;
         if (municipalityCacheGR.containsKey(municipalityCode)) {
             municipalityEntity = municipalityCacheGR.get(municipalityCode);
