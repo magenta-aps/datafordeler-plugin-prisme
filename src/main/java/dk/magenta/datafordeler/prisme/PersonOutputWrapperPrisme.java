@@ -274,6 +274,13 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             } else if (door != null && !door.isEmpty()) {
                 out.append(", " + door);
             }
+        } else {
+            if (floor != null && !floor.isEmpty()) {
+                out.append(" " + floor + ".");
+            }
+            if (door != null && !door.isEmpty()) {
+                out.append(" " + door);
+            }
         }
 
         if (bNumber != null && !bNumber.isEmpty()) {
