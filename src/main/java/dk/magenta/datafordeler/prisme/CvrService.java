@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @RestController
-@RequestMapping("/prisme/cvr/1")
+@RequestMapping("/prisme/cvr/0")
 public class CvrService {
 
     @Autowired
@@ -216,7 +216,7 @@ public class CvrService {
         AreaRestrictionType municipalityType = areaRestrictionDefinition.getAreaRestrictionTypeByName(CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER);
         for (AreaRestriction restriction : restrictions) {
             if (restriction.getType() == municipalityType) {
-                query.addKommunekode(restriction.getValue());
+                query.addKommuneKode(restriction.getValue());
             }
         }
     }
