@@ -89,9 +89,9 @@ public class CvrRecordService {
                 final Session lookupSession = sessionManager.getSessionFactory().openSession();
                 try {
                     LookupService service = new LookupService(lookupSession);
-                    CompanyRecord companyEntity = records.iterator().next();
+                    CompanyRecord companyRecord = records.iterator().next();
                     return objectMapper.writeValueAsString(
-                            this.wrapRecord(companyEntity, service)
+                            this.wrapRecord(companyRecord, service)
                     );
                 } finally {
                     lookupSession.close();
