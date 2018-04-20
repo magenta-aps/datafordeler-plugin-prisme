@@ -11,10 +11,7 @@ import dk.magenta.datafordeler.cpr.data.person.data.*;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,8 +49,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 for (PersonEffect virkning : personRegistration.getEffects()) {
                     if (virkning.getEffectTo() == null) {
                         OffsetDateTime effectFrom = virkning.getEffectFrom();
-                        List<PersonBaseData> dataItems = virkning.getDataItems();
-                        for (PersonBaseData personBaseData : virkning.getDataItems()) {
+                        ArrayList<PersonBaseData> dataItems = new ArrayList<>(virkning.getDataItems());
+                        dataItems.sort(Comparator.comparing(d -> d.getLastUpdated()));
+                        for (PersonBaseData personBaseData : dataItems) {
                             this.wrapDataObject(root, personBaseData, input);
                         }
                         if (effectFrom != null) {
