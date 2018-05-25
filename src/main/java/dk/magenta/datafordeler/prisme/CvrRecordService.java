@@ -248,13 +248,6 @@ public class CvrRecordService {
             addressRecord = this.getLastUpdated(record.getLocationAddress(), AddressRecord.class);
         }
         if (addressRecord != null) {
-
-            try {
-                System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(addressRecord));
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
-            }
-
             Address address = addressRecord.getAddress();
             Municipality municipality = address.getMunicipality();
             int municipalityCode = 0;
