@@ -250,9 +250,12 @@ public class CvrRecordService {
         if (addressRecord != null) {
             Address address = addressRecord.getAddress();
             Municipality municipality = address.getMunicipality();
-            int municipalityCode = municipality.getCode();
-            root.put("myndighedskode", municipalityCode);
-            root.put("kommune", municipality.getName());
+            int municipalityCode = 0;
+            if (municipality != null) {
+                municipalityCode = municipality.getCode();
+                root.put("myndighedskode", municipalityCode);
+                root.put("kommune", municipality.getName());
+            }
 
             int roadCode = address.getRoadCode();
             if (roadCode > 0) {
@@ -264,7 +267,6 @@ public class CvrRecordService {
                     }
                 }
             }
-
 
             String addressFormatted = address.getAddressFormatted();
             if (addressFormatted != null && !addressFormatted.isEmpty()) {
