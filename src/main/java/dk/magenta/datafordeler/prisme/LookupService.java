@@ -28,6 +28,7 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -200,7 +201,7 @@ public class LookupService {
                     if (m.find()) {
                         int numberPart = Integer.parseInt(m.group(1));
                         String letterPart = m.group(2).toLowerCase();
-                        List<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
+                        Set<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
                         if (postcodeData != null && !postcodeData.isEmpty()) {
                             for (RoadPostcodeData postcode : postcodeData) {
                                 if (postcode.getPostCode() != null) {
@@ -223,7 +224,7 @@ public class LookupService {
                             }
                         }
                     } else {
-                        List<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
+                        Set<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
                         if (postcodeData != null && !postcodeData.isEmpty()) {
                             for (RoadPostcodeData postcode : postcodeData) {
                                 if (postcode.getPostCode() != null) {
