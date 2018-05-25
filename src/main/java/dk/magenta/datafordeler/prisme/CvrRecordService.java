@@ -248,6 +248,13 @@ public class CvrRecordService {
             addressRecord = this.getLastUpdated(record.getLocationAddress(), AddressRecord.class);
         }
         if (addressRecord != null) {
+
+            try {
+                System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(addressRecord));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
+
             Address address = addressRecord.getAddress();
             Municipality municipality = address.getMunicipality();
             int municipalityCode = 0;
@@ -277,11 +284,16 @@ public class CvrRecordService {
             }
 
             PostCode postCode = address.getPost();
-            if (address.getPostnummer() != 0) {
-                root.put("postnummer", address.getPostnummer());
-            }
-            if (address.getPostdistrikt() != null) {
-                root.put("bynavn", address.getPostdistrikt());
+            if (postCode != null) {
+                root.put("postnummer", postCode.getPostCode());
+                root.put("bynavn", postCode.getPostDistrict());
+            } else {
+                if (address.getPostnummer() != 0) {
+                    root.put("postnummer", address.getPostnummer());
+                }
+                if (address.getPostdistrikt() != null) {
+                    root.put("bynavn", address.getPostdistrikt());
+                }
             }
             root.put("landekode", address.getCountryCode());
 
