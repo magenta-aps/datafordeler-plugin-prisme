@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dk.magenta.datafordeler.core.MonitorService;
 import dk.magenta.datafordeler.core.arearestriction.AreaRestriction;
 import dk.magenta.datafordeler.core.arearestriction.AreaRestrictionType;
 import dk.magenta.datafordeler.core.database.QueryManager;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -59,7 +61,15 @@ public class CvrRecordService {
     @Autowired
     private CvrPlugin cvrPlugin;
 
+    @Autowired
+    private MonitorService monitorService;
+
     private Logger log = LoggerFactory.getLogger(CvrRecordService.class);
+
+    @PostConstruct
+    public void init() {
+        this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
+    }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
