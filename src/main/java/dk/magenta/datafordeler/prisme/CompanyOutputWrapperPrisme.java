@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
+import dk.magenta.datafordeler.core.fapi.Query;
 import dk.magenta.datafordeler.cvr.data.company.CompanyBaseData;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEffect;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntity;
@@ -15,7 +16,7 @@ import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 
 public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
@@ -29,30 +30,29 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
     }
 
     @Override
-    public ObjectNode wrapResult(CompanyEntity input) {
+    public ObjectNode wrapResult(CompanyEntity input, Query query) {
 
         objectMapper = new ObjectMapper();
 
-        // Root
         NodeWrapper root = new NodeWrapper(objectMapper.createObjectNode());
         root.put("cvrNummer", input.getCvrNumber());
 
         OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
-        // Registrations
-        for (CompanyRegistration companyRegistration : input.getRegistrations()) {
-            for (CompanyEffect virkning : companyRegistration.getEffects()) {
-                OffsetDateTime effectFrom = virkning.getEffectFrom();
-                List<CompanyBaseData> dataItems = virkning.getDataItems();
-                for (CompanyBaseData companyBaseData : dataItems) {
-                    this.wrapDataObject(root, companyBaseData);
-                }
-                if (effectFrom != null) {
-                    if (effectFrom.isAfter(highestStatusTime)) {
-                        for (CompanyBaseData companyBaseData : dataItems) {
-                            if (companyBaseData.getStatusCode() != null) {
-                                highestStatusTime = effectFrom;
-                            }
-                        }
+
+        List<CompanyRegistration> companyRegistrations = input.getRegistrations();
+        CompanyRegistration companyRegistration = companyRegistrations.get(companyRegistrations.size() - 1);
+        List<CompanyEffect> companyEffects = companyRegistration.getEffects();
+        companyEffects.sort(Comparator.comparing(Effect::getEffectTo, Comparator.nullsLast(Comparator.naturalOrder())));
+
+        for (CompanyEffect virkning : companyEffects) {
+            OffsetDateTime effectFrom = virkning.getEffectFrom();
+            List<CompanyBaseData> dataItems = virkning.getDataItems();
+            boolean statusEliglible = (effectFrom != null && effectFrom.isAfter(highestStatusTime));
+            for (CompanyBaseData companyBaseData : dataItems) {
+                this.wrapDataObject(root, companyBaseData);
+                if (statusEliglible) {
+                    if (companyBaseData.getStatusCode() != null) {
+                        highestStatusTime = effectFrom;
                     }
                 }
             }
@@ -69,15 +69,11 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
 
         Industry industry = dataItem.getPrimaryIndustry();
         if (industry != null) {
-            // output.put("brancheKode", industry.getIndustryCode());
             output.put("forretningsområde", industry.getIndustryText());
         }
 
         String statusCode = dataItem.getStatusCode();
         output.put("statuskode", statusCode);
-        // if (statusCode != null) {
-        //     output.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects()));
-        // }
 
         Address address = dataItem.getPostalAddress();
         if (address == null) {
