@@ -3,6 +3,7 @@ package dk.magenta.datafordeler.prisme;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
+import dk.magenta.datafordeler.core.fapi.Query;
 import dk.magenta.datafordeler.cpr.data.person.PersonEffect;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
@@ -10,10 +11,7 @@ import dk.magenta.datafordeler.cpr.data.person.data.*;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,7 +26,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
     }
 
     @Override
-    public Object wrapResult(PersonEntity input) {
+    public Object wrapResult(PersonEntity input, Query query) {
 
         objectMapper = new ObjectMapper();
 
@@ -43,44 +41,46 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         OffsetDateTime highestEmigrationTime = OffsetDateTime.MIN;
         OffsetDateTime highestAddressTime = OffsetDateTime.MIN;
         // Registrations
-
         List<PersonRegistration> registrations = input.getRegistrations();
         if (registrations != null && !registrations.isEmpty()) {
-            PersonRegistration personRegistration = registrations.get(registrations.size()-1);
-            if (personRegistration.getRegistrationTo() == null) {
-                for (PersonEffect virkning : personRegistration.getEffects()) {
-                    if (virkning.getEffectTo() == null) {
-                        OffsetDateTime effectFrom = virkning.getEffectFrom();
-                        List<PersonBaseData> dataItems = virkning.getDataItems();
-                        for (PersonBaseData personBaseData : virkning.getDataItems()) {
-                            this.wrapDataObject(root, personBaseData, input);
-                        }
-                        if (effectFrom != null) {
-                            if (effectFrom.isAfter(highestStatusTime)) {
-                                for (PersonBaseData personBaseData : dataItems) {
-                                    if (personBaseData.getStatus() != null) {
-                                        highestStatusTime = effectFrom;
+            //    PersonRegistration personRegistration = registrations.get(registrations.size()-1);
+            for (PersonRegistration personRegistration : registrations) {
+                if (personRegistration.getRegistrationTo() == null) {
+                    for (PersonEffect virkning : personRegistration.getEffects()) {
+                        if (virkning.getEffectTo() == null) {
+                            OffsetDateTime effectFrom = virkning.getEffectFrom();
+                            ArrayList<PersonBaseData> dataItems = new ArrayList<>(virkning.getDataItems());
+                            dataItems.sort(Comparator.comparing(d -> d.getLastUpdated()));
+                            for (PersonBaseData personBaseData : dataItems) {
+                                this.wrapDataObject(root, personBaseData, input);
+                            }
+                            if (effectFrom != null) {
+                                if (effectFrom.isAfter(highestStatusTime)) {
+                                    for (PersonBaseData personBaseData : dataItems) {
+                                        if (personBaseData.getStatus() != null) {
+                                            highestStatusTime = effectFrom;
+                                        }
                                     }
                                 }
-                            }
-                            if (effectFrom.isAfter(highestCivilStatusTime)) {
-                                for (PersonBaseData personBaseData : dataItems) {
-                                    if (personBaseData.getCivilStatus() != null) {
-                                        highestCivilStatusTime = effectFrom;
+                                if (effectFrom.isAfter(highestCivilStatusTime)) {
+                                    for (PersonBaseData personBaseData : dataItems) {
+                                        if (personBaseData.getCivilStatus() != null) {
+                                            highestCivilStatusTime = effectFrom;
+                                        }
                                     }
                                 }
-                            }
-                            if (effectFrom.isAfter(highestEmigrationTime)) {
-                                for (PersonBaseData personBaseData : dataItems) {
-                                    if (personBaseData.getMigration() != null) {
-                                        highestEmigrationTime = effectFrom;
+                                if (effectFrom.isAfter(highestEmigrationTime)) {
+                                    for (PersonBaseData personBaseData : dataItems) {
+                                        if (personBaseData.getMigration() != null) {
+                                            highestEmigrationTime = effectFrom;
+                                        }
                                     }
                                 }
-                            }
-                            if (effectFrom.isAfter(highestAddressTime)) {
-                                for (PersonBaseData personBaseData : dataItems) {
-                                    if (personBaseData.getAddress() != null) {
-                                        highestAddressTime = effectFrom;
+                                if (effectFrom.isAfter(highestAddressTime)) {
+                                    for (PersonBaseData personBaseData : dataItems) {
+                                        if (personBaseData.getAddress() != null) {
+                                            highestAddressTime = effectFrom;
+                                        }
                                     }
                                 }
                             }
@@ -280,6 +280,13 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 }
             } else if (door != null && !door.isEmpty()) {
                 out.append(", " + door);
+            }
+        } else {
+            if (floor != null && !floor.isEmpty()) {
+                out.append(" " + floor + ".");
+            }
+            if (door != null && !door.isEmpty()) {
+                out.append(" " + door);
             }
         }
 

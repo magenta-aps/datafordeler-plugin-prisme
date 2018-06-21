@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @RestController
-@RequestMapping("/prisme/cvr/1")
+@RequestMapping("/prisme/cvr/0")
 public class CvrService {
 
     @Autowired
@@ -96,7 +96,7 @@ public class CvrService {
 
             if (!companyEntities.isEmpty()) {
                 CompanyEntity companyEntity = companyEntities.get(0);
-                return objectMapper.writeValueAsString(companyOutputWrapper.wrapResult(companyEntity));
+                return objectMapper.writeValueAsString(companyOutputWrapper.wrapResult(companyEntity, companyQuery));
             }
             throw new HttpNotFoundException("No entity with CVR number "+cvrNummer+" was found");
         } finally {
@@ -190,7 +190,7 @@ public class CvrService {
                                 outputStream.write(("\"" + companyEntity.getCvrNumber() + "\":").getBytes());
                                 outputStream.write(
                                         objectMapper.writeValueAsString(
-                                                companyOutputWrapper.wrapResult(companyEntity)
+                                                companyOutputWrapper.wrapResult(companyEntity, companyQuery)
                                         ).getBytes(Charset.forName("UTF-8"))
                                 );
                             } catch (IOException e) {
@@ -227,7 +227,7 @@ public class CvrService {
         AreaRestrictionType municipalityType = areaRestrictionDefinition.getAreaRestrictionTypeByName(CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER);
         for (AreaRestriction restriction : restrictions) {
             if (restriction.getType() == municipalityType) {
-                query.addKommunekode(restriction.getValue());
+                query.addKommuneKode(restriction.getValue());
             }
         }
     }

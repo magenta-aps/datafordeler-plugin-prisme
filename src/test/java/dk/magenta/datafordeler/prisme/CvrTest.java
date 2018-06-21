@@ -231,6 +231,8 @@ public class CvrTest {
         Thread.sleep(10);
         loadManyCompanies(5, 5);
 
+        OffsetDateTime companyUpdate = OffsetDateTime.parse("2017-04-10T09:01:06.000+02:00");
+
         loadGladdrregData();
         OffsetDateTime afterLoad = OffsetDateTime.now();
 
@@ -310,7 +312,8 @@ public class CvrTest {
             cvrList.add("10000008");
             cvrList.add("10000009");
             body.set("cvrNumber", cvrList);
-            body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            //body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            body.put("updatedSince", companyUpdate.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
             response = restTemplate.exchange(
                     "/prisme/cvr/1/",
@@ -336,7 +339,8 @@ public class CvrTest {
             cvrList.add("10000008");
             cvrList.add("10000009");
             body.set("cvrNumber", cvrList);
-            body.put("updatedSince", afterLoad.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            //body.put("updatedSince", afterLoad.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            body.put("updatedSince", companyUpdate.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
             response = restTemplate.exchange(
                     "/prisme/cvr/1/",
@@ -344,39 +348,11 @@ public class CvrTest {
                     httpEntity,
                     String.class
             );
+            System.out.println(response.getBody());
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(0, objectMapper.readTree(response.getBody()).size());
 
-
-
-
-
-            body = objectMapper.createObjectNode();
-            cvrList = objectMapper.createArrayNode();
-            cvrList.add("10000000");
-            cvrList.add("10000001");
-            cvrList.add("10000002");
-            cvrList.add("10000003");
-            cvrList.add("10000004");
-            cvrList.add("10000005");
-            cvrList.add("10000006");
-            cvrList.add("10000007");
-            cvrList.add("10000008");
-            cvrList.add("10000009");
-            body.set("cvrNumber", cvrList);
-            body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
-            response = restTemplate.exchange(
-                    "/prisme/cvr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
-
-            System.out.println(response);
-        } finally {
+            } finally {
             cleanup();
         }
     }
