@@ -305,29 +305,18 @@ public class CvrRecordService {
                 root.put("co", coName);
             }
         }
-        Collection<ContactRecord> emailAddresses = record.getEmailAddress();
-        if (emailAddresses != null) {
-            ArrayNode emailNode = objectMapper.createArrayNode();
-            for (ContactRecord emailAddress : emailAddresses) {
-                emailNode.add(emailAddress.getContactInformation());
-            }
-            root.set("email", emailNode);
+
+        ContactRecord emailAddress = this.getLastUpdated(record.getEmailAddress(), ContactRecord.class);
+        if (emailAddress != null) {
+            root.put("email", emailAddress.getContactInformation());
         }
-        Collection<ContactRecord> phoneNumbers = record.getPhoneNumber();
-        if (phoneNumbers != null) {
-            ArrayNode phoneNode = objectMapper.createArrayNode();
-            for (ContactRecord phoneNumber : phoneNumbers) {
-                phoneNode.add(phoneNumber.getContactInformation());
-            }
-            root.set("telefon", phoneNode);
+        ContactRecord phoneNumber = this.getLastUpdated(record.getPhoneNumber(), ContactRecord.class);
+        if (phoneNumber != null) {
+            root.put("telefon", phoneNumber.getContactInformation());
         }
-        Collection<ContactRecord> faxNumbers = record.getFaxNumber();
-        if (faxNumbers != null) {
-            ArrayNode faxNode = objectMapper.createArrayNode();
-            for (ContactRecord faxNumber : faxNumbers) {
-                faxNode.add(faxNumber.getContactInformation());
-            }
-            root.set("telefax", faxNode);
+        ContactRecord faxNumber = this.getLastUpdated(record.getFaxNumber(), ContactRecord.class);
+        if (faxNumber != null) {
+            root.put("telefax", faxNumber.getContactInformation());
         }
         return root;
     }
