@@ -305,6 +305,30 @@ public class CvrRecordService {
                 root.put("co", coName);
             }
         }
+        Collection<ContactRecord> emailAddresses = record.getEmailAddress();
+        if (emailAddresses != null) {
+            ArrayNode emailNode = objectMapper.createArrayNode();
+            for (ContactRecord emailAddress : emailAddresses) {
+                emailNode.add(emailAddress.getContactInformation());
+            }
+            root.set("email", emailNode);
+        }
+        Collection<ContactRecord> phoneNumbers = record.getPhoneNumber();
+        if (phoneNumbers != null) {
+            ArrayNode phoneNode = objectMapper.createArrayNode();
+            for (ContactRecord phoneNumber : phoneNumbers) {
+                phoneNode.add(phoneNumber.getContactInformation());
+            }
+            root.set("telefon", phoneNode);
+        }
+        Collection<ContactRecord> faxNumbers = record.getFaxNumber();
+        if (faxNumbers != null) {
+            ArrayNode faxNode = objectMapper.createArrayNode();
+            for (ContactRecord faxNumber : faxNumbers) {
+                faxNode.add(faxNumber.getContactInformation());
+            }
+            root.set("telefax", faxNode);
+        }
         return root;
     }
 
