@@ -3,8 +3,8 @@ package dk.magenta.datafordeler.prisme;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.database.Effect;
+import dk.magenta.datafordeler.core.fapi.BaseQuery;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
-import dk.magenta.datafordeler.core.fapi.Query;
 import dk.magenta.datafordeler.cvr.data.company.CompanyBaseData;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEffect;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntity;
@@ -30,7 +30,7 @@ public class CompanyOutputWrapperPrisme extends OutputWrapper<CompanyEntity> {
     }
 
     @Override
-    public ObjectNode wrapResult(CompanyEntity input, Query query) {
+    public ObjectNode wrapResult(CompanyEntity input, BaseQuery query) {
 
         objectMapper = new ObjectMapper();
 
