@@ -2,8 +2,8 @@ package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.Effect;
+import dk.magenta.datafordeler.core.fapi.BaseQuery;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
-import dk.magenta.datafordeler.core.fapi.Query;
 import dk.magenta.datafordeler.cpr.data.person.PersonEffect;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
@@ -26,7 +26,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
     }
 
     @Override
-    public Object wrapResult(PersonEntity input, Query query) {
+    public Object wrapResult(PersonEntity input, BaseQuery query) {
 
         objectMapper = new ObjectMapper();
 
