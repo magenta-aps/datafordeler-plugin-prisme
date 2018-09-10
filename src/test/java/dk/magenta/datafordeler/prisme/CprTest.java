@@ -15,6 +15,7 @@ import dk.magenta.datafordeler.core.util.InputStreamReader;
 import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
+import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
@@ -80,6 +81,12 @@ public class CprTest {
 
     @Autowired
     private CprPlugin cprPlugin;
+
+    @Autowired
+    private CprService cprService;
+
+    @Autowired
+    private PersonOutputWrapperPrisme personOutputWrapper;
 
     HashSet<Entity> createdEntities = new HashSet<>();
 
@@ -186,6 +193,32 @@ public class CprTest {
     }
 
     @Test
+    public void testPersonRecordOutput() throws Exception {
+        loadPerson();
+        loadGladdrregData();
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        LookupService lookupService = new LookupService(session);
+        personOutputWrapper.setLookupService(lookupService);
+        try {
+            for (PersonEntity entity : QueryManager.getAllEntities(session, PersonEntity.class)) {
+                ObjectNode oldOutput = (ObjectNode) personOutputWrapper.wrapResult(entity, null);
+                ObjectNode newOutput = (ObjectNode) personOutputWrapper.wrapRecordResult(entity, null);
+                try {
+                    Assert.assertTrue(oldOutput.equals(newOutput));
+                } catch (AssertionError e) {
+                    System.out.println(entity.getId()+": "+entity.getPersonnummer());
+                    System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(oldOutput));
+                    System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newOutput));
+                    throw e;
+                }
+            }
+        } finally {
+            session.close();
+        }
+    }
+
+        @Test
     public void testPersonPrisme() throws Exception {
         loadPerson();
         loadGladdrregData();

@@ -66,7 +66,8 @@ public class CprService {
 
     private Logger log = LoggerFactory.getLogger(CprService.class);
 
-    private PersonOutputWrapperPrisme personOutputWrapper = new PersonOutputWrapperPrisme();
+    @Autowired
+    private PersonOutputWrapperPrisme personOutputWrapper;
 
     @PostConstruct
     public void init() {
