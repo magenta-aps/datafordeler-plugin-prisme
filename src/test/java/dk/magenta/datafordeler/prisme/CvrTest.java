@@ -216,13 +216,12 @@ public class CvrTest {
             );
             this.applyAccess(testUserDetails);
             response = restTemplate.exchange(
-                    "/prisme/cvr/1/" + 25052943,
+                    "/prisme/cvr/1/" + 25052943 + "?returnParticipantDetails=1",
                     HttpMethod.GET,
                     httpEntity,
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-
         } finally {
             cleanup();
         }
