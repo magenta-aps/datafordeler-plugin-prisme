@@ -1,9 +1,11 @@
 package dk.magenta.datafordeler.prisme;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.BaseQuery;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
+import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.cpr.data.person.PersonEffect;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
@@ -34,20 +36,32 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
     private <T extends CprBitemporalPersonRecord> T getLatest(Collection<T> records) {
         //OffsetDateTime latestEffect = OffsetDateTime.MIN;
         OffsetDateTime latestRegistration = OffsetDateTime.MIN;
-        T latest = null;
+        ArrayList<T> latest = new ArrayList<>();
+        OffsetDateTime now = OffsetDateTime.now();
+        Bitemporality currentBitemp = new Bitemporality(now, now, now, now);
+        OffsetDateTime latestUpdated = OffsetDateTime.MIN;
         for (T record : records) {
             //if (record.getEffectTo() == null || (latestEffect != null && record.getEffectTo().isAfter(latestEffect))) {
             //    latestEffect = record.getEffectTo();
-            OffsetDateTime registrationFrom = record.getRegistrationFrom();
-            if (registrationFrom == null) {
-                registrationFrom = OffsetDateTime.MIN;
-            }
-            if (record.getRegistrationTo() == null && record.getEffectTo() == null && !registrationFrom.isBefore(latestRegistration)) {
-                latest = record;
-                latestRegistration = record.getRegistrationFrom();
+            if (record.getBitemporality().contains(currentBitemp) && !record.getDafoUpdated().isBefore(latestUpdated)) {
+                OffsetDateTime registrationFrom = record.getRegistrationFrom();
+                if (registrationFrom == null) {
+                    registrationFrom = OffsetDateTime.MIN;
+                }
+                if (!registrationFrom.isBefore(latestRegistration)) {
+                    if (!registrationFrom.isEqual(latestRegistration)) {
+                        latest.clear();
+                    }
+                    latest.add(record);
+                    latestUpdated = record.getDafoUpdated();
+                    latestRegistration = registrationFrom;
+                }
             }
         }
-        return latest;
+        if (latest.size() > 1) {
+            latest.sort(Comparator.comparing(CprBitemporalPersonRecord::getId));
+        }
+        return latest.isEmpty() ? null : latest.get(latest.size()-1);
     }
 
     public Object wrapRecordResult(PersonEntity input, BaseQuery query) {
@@ -97,13 +111,19 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
         ForeignAddressDataRecord personForeignAddressData = this.getLatest(input.getForeignAddress());
         if (personForeignAddressData != null) {
-            root.put("udlandsadresse", personForeignAddressData.join("\n"));
+            String foreignAddress = personForeignAddressData.join("\n");
+            if (!foreignAddress.isEmpty()) {
+                root.put("udlandsadresse", foreignAddress);
+            }
         }
 
         ForeignAddressEmigrationDataRecord personEmigrationData = this.getLatest(input.getEmigration());
         if (personEmigrationData != null) {
+            System.out.println(input.getId()+" emigration exists "+personEmigrationData.getEmigrationCountryCode());
             root.put("landekode", countryCodeMap.get(personEmigrationData.getEmigrationCountryCode()));
             root.put("udrejsedato", formatDate(personEmigrationData.getEffectFrom()));
+        } else {
+            System.out.println(input.getId()+" emigration entries: "+input.getEmigration().size());
         }
 
         PersonCoreDataRecord personCoreData = this.getLatest(input.getCore());
@@ -126,7 +146,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             root.put("statuskode", personStatusData.getStatus());
             root.put("statuskodedato", this.formatDate(personStatusData.getEffectFrom()));
         }
-
 
         AddressDataRecord personAddressData = this.getLatest(input.getAddress());
         if (personAddressData != null) {
@@ -169,9 +188,23 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 root.put("landekode", "GL");
             }
         }
+
+        AddressConameDataRecord personAddressConameData = this.getLatest(input.getConame());
+        if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
+            String coname = personAddressConameData.getConame();
+            if (coname != null) {
+                coname = coname.toLowerCase();
+                Matcher m = postboxExtract.matcher(coname);
+                if (m.find()) {
+                    try {
+                        int postbox = Integer.parseInt(m.group(1), 10);
+                        root.put("postboks", postbox);
+                    } catch (NumberFormatException e) {}
+                }
+            }
+        }
         return root.getNode();
     }
-
 
     @Override
     public Object wrapResult(PersonEntity input, BaseQuery query) {
