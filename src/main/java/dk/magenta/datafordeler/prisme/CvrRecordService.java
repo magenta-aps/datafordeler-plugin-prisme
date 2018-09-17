@@ -107,7 +107,7 @@ public class CvrRecordService {
                 try {
                     LookupService service = new LookupService(lookupSession);
                     CompanyRecord companyRecord = records.iterator().next();
-                    return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(
+                    return objectMapper.writeValueAsString(
                             this.wrapRecord(companyRecord, service, returnParticipantDetails)
                     );
                 } finally {
