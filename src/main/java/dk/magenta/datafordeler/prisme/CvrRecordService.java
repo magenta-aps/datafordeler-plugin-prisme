@@ -15,10 +15,12 @@ import dk.magenta.datafordeler.core.fapi.Query;
 import dk.magenta.datafordeler.core.plugin.AreaRestrictionDefinition;
 import dk.magenta.datafordeler.core.user.DafoUserDetails;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
+import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.core.util.LoggerHelper;
 import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
+import dk.magenta.datafordeler.cvr.DirectLookup;
 import dk.magenta.datafordeler.cvr.data.company.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.data.unversioned.Address;
 import dk.magenta.datafordeler.cvr.data.unversioned.Municipality;
@@ -67,6 +69,9 @@ public class CvrRecordService {
     @Autowired
     private MonitorService monitorService;
 
+    @Autowired
+    private DirectLookup directLookup;
+
     private Logger log = LoggerFactory.getLogger(CvrRecordService.class);
 
     @PostConstruct
@@ -76,7 +81,7 @@ public class CvrRecordService {
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
-            throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, JsonProcessingException, HttpNotFoundException {
+            throws DataFordelerException, JsonProcessingException {
 
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
         LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
@@ -100,7 +105,7 @@ public class CvrRecordService {
                 try {
                     LookupService service = new LookupService(lookupSession);
                     CompanyRecord companyRecord = records.iterator().next();
-                    return objectMapper.writeValueAsString(
+                    return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(
                             this.wrapRecord(companyRecord, service)
                     );
                 } finally {
@@ -231,12 +236,12 @@ public class CvrRecordService {
 
         root.put("cvrNummer", record.getCvrNumber());
 
-        SecNameRecord nameRecord = this.getLastUpdated(record.getNames(), SecNameRecord.class);
+        SecNameRecord nameRecord = this.getLastUpdated(record.getNames());
         if (nameRecord != null) {
             root.put("navn", nameRecord.getName());
         }
 
-        CompanyIndustryRecord industryRecord = this.getLastUpdated(record.getPrimaryIndustry(), CompanyIndustryRecord.class);
+        CompanyIndustryRecord industryRecord = this.getLastUpdated(record.getPrimaryIndustry());
         if (industryRecord != null) {
             root.put("forretningsområde", industryRecord.getIndustryText());
         }
@@ -249,16 +254,16 @@ public class CvrRecordService {
             }
         }
 
-        CompanyStatusRecord statusRecord = this.getLastUpdated(statusRecords, CompanyStatusRecord.class);
+        CompanyStatusRecord statusRecord = this.getLastUpdated(statusRecords);
         if (statusRecord != null) {
             root.put("statuskode", statusRecord.getStatus());
             root.put("statuskodedato", statusRecord.getValidFrom().format(DateTimeFormatter.ISO_LOCAL_DATE));
         }
 
-        AddressRecord addressRecord = this.getLastUpdated(record.getPostalAddress(), AddressRecord.class);
+        AddressRecord addressRecord = this.getLastUpdated(record.getPostalAddress());
 
         if (addressRecord == null) {
-            addressRecord = this.getLastUpdated(record.getLocationAddress(), AddressRecord.class);
+            addressRecord = this.getLastUpdated(record.getLocationAddress());
         }
         if (addressRecord != null) {
             Address address = addressRecord.getAddress();
@@ -309,22 +314,78 @@ public class CvrRecordService {
             }
         }
 
-        ContactRecord emailAddress = this.getLastUpdated(record.getEmailAddress(), ContactRecord.class);
+        ContactRecord emailAddress = this.getLastUpdated(record.getEmailAddress());
         if (emailAddress != null) {
             root.put("email", emailAddress.getContactInformation());
         }
-        ContactRecord phoneNumber = this.getLastUpdated(record.getPhoneNumber(), ContactRecord.class);
+        ContactRecord phoneNumber = this.getLastUpdated(record.getPhoneNumber());
         if (phoneNumber != null) {
             root.put("telefon", phoneNumber.getContactInformation());
         }
-        ContactRecord faxNumber = this.getLastUpdated(record.getFaxNumber(), ContactRecord.class);
+        ContactRecord faxNumber = this.getLastUpdated(record.getFaxNumber());
         if (faxNumber != null) {
             root.put("telefax", faxNumber.getContactInformation());
         }
+
+        root.set("deltagere", this.getParticipants(record));
+
         return root;
     }
 
-    private <T extends CvrBitemporalRecord> T getLastUpdated(Collection<T> records, Class<T> tClass) {
+    private ArrayNode getParticipants(CompanyRecord record) {
+        ArrayNode participantsOutput = objectMapper.createArrayNode();
+        OffsetDateTime current = OffsetDateTime.now();
+        Bitemporality now = new Bitemporality(current, current, current, current);
+        for (CompanyParticipantRelationRecord participant : record.getParticipants()) {
+            RelationParticipantRecord relationParticipantRecord = participant.getRelationParticipantRecord();
+            if ("PERSON".equals(relationParticipantRecord.unitType)) {
+                for (OrganizationRecord organization : participant.getOrganizations()) {
+                    ArrayNode memberNodes = objectMapper.createArrayNode();
+                    boolean found = false;
+                    for (OrganizationMemberdataRecord memberdataRecord : organization.getMemberData()) {
+                        for (AttributeRecord memberAttribute : memberdataRecord.getAttributes()) {
+                            if ("FUNKTION".equals(memberAttribute.getType())) {
+                                AttributeValueRecord memberAttributeValue = getLastUpdated(memberAttribute.getValues());
+                                if (memberAttributeValue != null && memberAttributeValue.getBitemporality().contains(now)) {
+                                    ObjectNode orgMemberNode = objectMapper.createObjectNode();
+                                    orgMemberNode.put("funktion", memberAttributeValue.getValue());
+                                    memberNodes.add(orgMemberNode);
+                                    found = true;
+                                }
+                            }
+                        }
+                    }
+                    if (found) {
+                        ObjectNode participantOutput = objectMapper.createObjectNode();
+                        participantsOutput.add(participantOutput);
+                        long unitNumber = relationParticipantRecord.getUnitNumber();
+                        participantOutput.put("enhedsNummer", unitNumber);
+                        ArrayNode organizationsOutput = objectMapper.createArrayNode();
+                        participantOutput.set("organisationer", organizationsOutput);
+                        ObjectNode organizationOutput = objectMapper.createObjectNode();
+                        organizationsOutput.add(organizationOutput);
+                        organizationOutput.set("medlemmer", memberNodes);
+                        organizationOutput.put("type", organization.getMainType());
+                        for (BaseNameRecord organizationName : organization.getNames()) {
+                            String name = organizationName.getName();
+                            organizationOutput.put("navn", name);
+                        }
+                        try {
+                            ParticipantRecord participantRecord = directLookup.participantLookup(Long.toString(unitNumber, 10));
+                            if (participantRecord != null) {
+                                participantOutput.put("deltagerForretningsNøgle", String.format("%010d", participantRecord.getBusinessKey()));
+                            }
+                        } catch (DataFordelerException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+        return participantsOutput;
+    }
+
+    private <T extends CvrBitemporalRecord> T getLastUpdated(Collection<T> records) {
         LocalDate latestEffect = LocalDate.MIN;
         T latest = null;
         for (T record : records) {
