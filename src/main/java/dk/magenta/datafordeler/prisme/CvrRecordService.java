@@ -97,6 +97,8 @@ public class CvrRecordService {
         query.setCvrNumre(cvrNumbers);
         this.applyAreaRestrictionsToQuery(query, user);
 
+        boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
+
         Session session = sessionManager.getSessionFactory().openSession();
         try {
             List<CompanyRecord> records = QueryManager.getAllEntities(session, query, CompanyRecord.class);
@@ -106,7 +108,7 @@ public class CvrRecordService {
                     LookupService service = new LookupService(lookupSession);
                     CompanyRecord companyRecord = records.iterator().next();
                     return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(
-                            this.wrapRecord(companyRecord, service)
+                            this.wrapRecord(companyRecord, service, returnParticipantDetails)
                     );
                 } finally {
                     lookupSession.close();
@@ -192,7 +194,7 @@ public class CvrRecordService {
                         outputStream.write(("\"" + record.getCvrNumber() + "\":").getBytes());
                         outputStream.write(
                                 objectMapper.writeValueAsString(
-                                        CvrRecordService.this.wrapRecord(record, lookupService)
+                                        CvrRecordService.this.wrapRecord(record, lookupService, false)
                                 ).getBytes("UTF-8")
                         );
                     }
@@ -231,7 +233,7 @@ public class CvrRecordService {
         return cvrNumbers;
     }
 
-    private JsonNode wrapRecord(CompanyRecord record, LookupService lookupService) {
+    private JsonNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
         root.put("cvrNummer", record.getCvrNumber());
@@ -327,7 +329,9 @@ public class CvrRecordService {
             root.put("telefax", faxNumber.getContactInformation());
         }
 
-        root.set("deltagere", this.getParticipants(record));
+        if (returnParticipantDetails) {
+            root.set("deltagere", this.getParticipants(record));
+        }
 
         return root;
     }
@@ -373,7 +377,7 @@ public class CvrRecordService {
                         try {
                             ParticipantRecord participantRecord = directLookup.participantLookup(Long.toString(unitNumber, 10));
                             if (participantRecord != null) {
-                                participantOutput.put("deltagerForretningsNøgle", String.format("%010d", participantRecord.getBusinessKey()));
+                                participantOutput.put("deltagerPnr", String.format("%010d", participantRecord.getBusinessKey()));
                             }
                         } catch (DataFordelerException e) {
                             e.printStackTrace();
