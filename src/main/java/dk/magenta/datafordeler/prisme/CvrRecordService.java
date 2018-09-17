@@ -373,7 +373,7 @@ public class CvrRecordService {
                         try {
                             ParticipantRecord participantRecord = directLookup.participantLookup(Long.toString(unitNumber, 10));
                             if (participantRecord != null) {
-                                participantOutput.put("deltagerForretningsNøgle", String.format("%010d", participantRecord.getBusinessKey()));
+                                participantOutput.put("deltagerPnr", String.format("%010d", participantRecord.getBusinessKey()));
                             }
                         } catch (DataFordelerException e) {
                             e.printStackTrace();
