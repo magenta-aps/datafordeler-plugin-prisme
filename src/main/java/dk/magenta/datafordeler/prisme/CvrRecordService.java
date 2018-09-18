@@ -343,6 +343,12 @@ public class CvrRecordService {
         for (CompanyParticipantRelationRecord participant : record.getParticipants()) {
             RelationParticipantRecord relationParticipantRecord = participant.getRelationParticipantRecord();
             if ("PERSON".equals(relationParticipantRecord.unitType)) {
+                boolean hasEligibleParticipant = false;
+
+                ObjectNode participantOutput = objectMapper.createObjectNode();
+                ArrayNode organizationsOutput = objectMapper.createArrayNode();
+                participantOutput.set("organisationer", organizationsOutput);
+
                 for (OrganizationRecord organization : participant.getOrganizations()) {
                     ArrayNode memberNodes = objectMapper.createArrayNode();
                     boolean found = false;
@@ -360,12 +366,7 @@ public class CvrRecordService {
                         }
                     }
                     if (found) {
-                        ObjectNode participantOutput = objectMapper.createObjectNode();
-                        participantsOutput.add(participantOutput);
-                        long unitNumber = relationParticipantRecord.getUnitNumber();
-                        participantOutput.put("enhedsNummer", unitNumber);
-                        ArrayNode organizationsOutput = objectMapper.createArrayNode();
-                        participantOutput.set("organisationer", organizationsOutput);
+                        hasEligibleParticipant = true;
                         ObjectNode organizationOutput = objectMapper.createObjectNode();
                         organizationsOutput.add(organizationOutput);
                         organizationOutput.set("medlemmer", memberNodes);
@@ -374,15 +375,20 @@ public class CvrRecordService {
                             String name = organizationName.getName();
                             organizationOutput.put("navn", name);
                         }
-                        try {
-                            ParticipantRecord participantRecord = directLookup.participantLookup(Long.toString(unitNumber, 10));
-                            if (participantRecord != null) {
-                                participantOutput.put("deltagerPnr", String.format("%010d", participantRecord.getBusinessKey()));
-                            }
-                        } catch (DataFordelerException e) {
-                            e.printStackTrace();
-                        }
                     }
+                }
+                if (hasEligibleParticipant) {
+                    long unitNumber = relationParticipantRecord.getUnitNumber();
+                    participantOutput.put("enhedsNummer", unitNumber);
+                    try {
+                        ParticipantRecord participantRecord = directLookup.participantLookup(Long.toString(unitNumber, 10));
+                        if (participantRecord != null) {
+                            participantOutput.put("deltagerPnr", String.format("%010d", participantRecord.getBusinessKey()));
+                        }
+                    } catch (Exception e) {
+                        log.info(e.getMessage());
+                    }
+                    participantsOutput.add(participantOutput);
                 }
             }
         }
