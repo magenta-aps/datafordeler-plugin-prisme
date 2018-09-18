@@ -127,7 +127,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         PersonStatusDataRecord personStatusData = this.getLatest(input.getStatus());
         if (personStatusData != null) {
             root.put("statuskode", personStatusData.getStatus());
-            root.put("statuskodedato", this.formatDate(personStatusData.getEffectFrom()));
+            root.put("statuskodedato", this.formatDate(
+                    personStatusData.getEffectFrom() != null ? personStatusData.getEffectFrom() : personStatusData.getRegistrationFrom()
+            ));
         }
 
         ForeignAddressDataRecord personForeignAddressData = this.getLatest(input.getForeignAddress());
