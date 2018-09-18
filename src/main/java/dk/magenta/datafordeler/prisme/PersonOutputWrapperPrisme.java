@@ -109,23 +109,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             }
         }*/
 
-        ForeignAddressDataRecord personForeignAddressData = this.getLatest(input.getForeignAddress());
-        if (personForeignAddressData != null) {
-            String foreignAddress = personForeignAddressData.join("\n");
-            if (!foreignAddress.isEmpty()) {
-                root.put("udlandsadresse", foreignAddress);
-            }
-        }
-
-        ForeignAddressEmigrationDataRecord personEmigrationData = this.getLatest(input.getEmigration());
-        if (personEmigrationData != null) {
-            System.out.println(input.getId()+" emigration exists "+personEmigrationData.getEmigrationCountryCode());
-            root.put("landekode", countryCodeMap.get(personEmigrationData.getEmigrationCountryCode()));
-            root.put("udrejsedato", formatDate(personEmigrationData.getEffectFrom()));
-        } else {
-            System.out.println(input.getId()+" emigration entries: "+input.getEmigration().size());
-        }
-
         PersonCoreDataRecord personCoreData = this.getLatest(input.getCore());
         if (personCoreData != null) {
             if (personCoreData.getGender() != null) {
@@ -147,45 +130,59 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             root.put("statuskodedato", this.formatDate(personStatusData.getEffectFrom()));
         }
 
+        ForeignAddressDataRecord personForeignAddressData = this.getLatest(input.getForeignAddress());
         AddressDataRecord personAddressData = this.getLatest(input.getAddress());
-        if (personAddressData != null) {
-            root.put("tilflytningsdato", formatDate(personAddressData.getEffectFrom()));
-            int municipalityCode = personAddressData.getMunicipalityCode();
-            root.put("myndighedskode", municipalityCode);
-            int roadCode = personAddressData.getRoadCode();
-            String houseNumber = personAddressData.getHouseNumber();
-            if (roadCode > 0) {
-                root.put("vejkode", roadCode);
 
-                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
+        if (personForeignAddressData != null && (personAddressData == null || personForeignAddressData.getEffectFrom().isAfter(personAddressData.getEffectFrom()))) {
+            String address = personForeignAddressData.join("\n");
+            if (!address.isEmpty()) {
+                root.put("udlandsadresse", personForeignAddressData.join("\n"));
+            }
+            ForeignAddressEmigrationDataRecord personEmigrationData = this.getLatest(input.getEmigration());
+            if (personEmigrationData != null) {
+                root.put("landekode", countryCodeMap.get(personEmigrationData.getEmigrationCountryCode()));
+                root.put("udrejsedato", formatDate(personEmigrationData.getEffectFrom()));
+            }
+        } else {
+            if (personAddressData != null) {
+                root.put("tilflytningsdato", formatDate(personAddressData.getEffectFrom()));
+                int municipalityCode = personAddressData.getMunicipalityCode();
+                root.put("myndighedskode", municipalityCode);
+                int roadCode = personAddressData.getRoadCode();
+                String houseNumber = personAddressData.getHouseNumber();
+                if (roadCode > 0) {
+                    root.put("vejkode", roadCode);
 
-                root.put("kommune", lookup.municipalityName);
+                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
 
-                String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
-                String roadName = lookup.roadName;
-                if (roadName != null) {
-                    root.put("adresse", this.getAddressFormatted(
-                            roadName,
-                            personAddressData.getHouseNumber(),
-                            null,
-                            null, null,
-                            personAddressData.getFloor(),
-                            personAddressData.getDoor(),
-                            buildingNumber
-                    ));
-                } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
-                    root.put("adresse", formatBNumber(buildingNumber));
+                    root.put("kommune", lookup.municipalityName);
+
+                    String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
+                    String roadName = lookup.roadName;
+                    if (roadName != null) {
+                        root.put("adresse", this.getAddressFormatted(
+                                roadName,
+                                personAddressData.getHouseNumber(),
+                                null,
+                                null, null,
+                                personAddressData.getFloor(),
+                                personAddressData.getDoor(),
+                                buildingNumber
+                        ));
+                    } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
+                        root.put("adresse", formatBNumber(buildingNumber));
+                    }
+
+                    root.put("postnummer", lookup.postalCode);
+                    root.put("bynavn", lookup.postalDistrict);
+                    root.put("stedkode", lookup.localityCode);
                 }
 
-                root.put("postnummer", lookup.postalCode);
-                root.put("bynavn", lookup.postalDistrict);
-                root.put("stedkode", lookup.localityCode);
-            }
-
-            if (municipalityCode > 0 && municipalityCode < 900) {
-                root.put("landekode", "DK");
-            } else if (municipalityCode > 900) {
-                root.put("landekode", "GL");
+                if (municipalityCode > 0 && municipalityCode < 900) {
+                    root.put("landekode", "DK");
+                } else if (municipalityCode > 900) {
+                    root.put("landekode", "GL");
+                }
             }
         }
 

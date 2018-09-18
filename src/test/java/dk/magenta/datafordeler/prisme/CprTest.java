@@ -218,6 +218,14 @@ public class CprTest {
                 if (newOutput.has("postboks") && (!oldOutput.has("postboks") || oldOutput.get("postboks").intValue() == 0)) {
                     oldOutput.set("postboks", newOutput.get("postboks"));
                 }
+                if (newOutput.has("vejkode") && newOutput.get("vejkode").intValue() == 9984) {
+                    oldOutput.set("adresse", newOutput.get("adresse"));
+                    oldOutput.set("bynavn", newOutput.get("bynavn"));
+                }
+                if (oldOutput.has("udlandsadresse") && (oldOutput.get("landekode").textValue().equals("GL") || oldOutput.get("landekode").textValue().equals("DK"))) {
+                    oldOutput.remove("udlandsadresse");
+                    oldOutput.remove("udrejsedato");
+                }
                 try {
                     Assert.assertTrue(oldOutput.equals(newOutput));
                 } catch (AssertionError e) {
