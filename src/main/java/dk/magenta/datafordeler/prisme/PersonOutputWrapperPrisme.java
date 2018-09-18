@@ -1,9 +1,11 @@
 package dk.magenta.datafordeler.prisme;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.BaseQuery;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
+import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.cpr.data.person.PersonEffect;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
@@ -34,20 +36,32 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
     private <T extends CprBitemporalPersonRecord> T getLatest(Collection<T> records) {
         //OffsetDateTime latestEffect = OffsetDateTime.MIN;
         OffsetDateTime latestRegistration = OffsetDateTime.MIN;
-        T latest = null;
+        ArrayList<T> latest = new ArrayList<>();
+        OffsetDateTime now = OffsetDateTime.now();
+        Bitemporality currentBitemp = new Bitemporality(now, now, now, now);
+        OffsetDateTime latestUpdated = OffsetDateTime.MIN;
         for (T record : records) {
             //if (record.getEffectTo() == null || (latestEffect != null && record.getEffectTo().isAfter(latestEffect))) {
             //    latestEffect = record.getEffectTo();
-            OffsetDateTime registrationFrom = record.getRegistrationFrom();
-            if (registrationFrom == null) {
-                registrationFrom = OffsetDateTime.MIN;
-            }
-            if (record.getRegistrationTo() == null && record.getEffectTo() == null && !registrationFrom.isBefore(latestRegistration)) {
-                latest = record;
-                latestRegistration = record.getRegistrationFrom();
+            if (record.getBitemporality().contains(currentBitemp) && !record.getDafoUpdated().isBefore(latestUpdated)) {
+                OffsetDateTime registrationFrom = record.getRegistrationFrom();
+                if (registrationFrom == null) {
+                    registrationFrom = OffsetDateTime.MIN;
+                }
+                if (!registrationFrom.isBefore(latestRegistration)) {
+                    if (!registrationFrom.isEqual(latestRegistration)) {
+                        latest.clear();
+                    }
+                    latest.add(record);
+                    latestUpdated = record.getDafoUpdated();
+                    latestRegistration = registrationFrom;
+                }
             }
         }
-        return latest;
+        if (latest.size() > 1) {
+            latest.sort(Comparator.comparing(CprBitemporalPersonRecord::getId));
+        }
+        return latest.isEmpty() ? null : latest.get(latest.size()-1);
     }
 
     public Object wrapRecordResult(PersonEntity input, BaseQuery query) {
@@ -95,17 +109,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             }
         }*/
 
-        ForeignAddressDataRecord personForeignAddressData = this.getLatest(input.getForeignAddress());
-        if (personForeignAddressData != null) {
-            root.put("udlandsadresse", personForeignAddressData.join("\n"));
-        }
-
-        ForeignAddressEmigrationDataRecord personEmigrationData = this.getLatest(input.getEmigration());
-        if (personEmigrationData != null) {
-            root.put("landekode", countryCodeMap.get(personEmigrationData.getEmigrationCountryCode()));
-            root.put("udrejsedato", formatDate(personEmigrationData.getEffectFrom()));
-        }
-
         PersonCoreDataRecord personCoreData = this.getLatest(input.getCore());
         if (personCoreData != null) {
             if (personCoreData.getGender() != null) {
@@ -124,54 +127,83 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         PersonStatusDataRecord personStatusData = this.getLatest(input.getStatus());
         if (personStatusData != null) {
             root.put("statuskode", personStatusData.getStatus());
-            root.put("statuskodedato", this.formatDate(personStatusData.getEffectFrom()));
+            root.put("statuskodedato", this.formatDate(
+                    personStatusData.getEffectFrom() != null ? personStatusData.getEffectFrom() : personStatusData.getRegistrationFrom()
+            ));
         }
 
-
+        ForeignAddressDataRecord personForeignAddressData = this.getLatest(input.getForeignAddress());
         AddressDataRecord personAddressData = this.getLatest(input.getAddress());
-        if (personAddressData != null) {
-            root.put("tilflytningsdato", formatDate(personAddressData.getEffectFrom()));
-            int municipalityCode = personAddressData.getMunicipalityCode();
-            root.put("myndighedskode", municipalityCode);
-            int roadCode = personAddressData.getRoadCode();
-            String houseNumber = personAddressData.getHouseNumber();
-            if (roadCode > 0) {
-                root.put("vejkode", roadCode);
 
-                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
+        if (personForeignAddressData != null && (personAddressData == null || personForeignAddressData.getEffectFrom().isAfter(personAddressData.getEffectFrom()))) {
+            String address = personForeignAddressData.join("\n");
+            if (!address.isEmpty()) {
+                root.put("udlandsadresse", personForeignAddressData.join("\n"));
+            }
+            ForeignAddressEmigrationDataRecord personEmigrationData = this.getLatest(input.getEmigration());
+            if (personEmigrationData != null) {
+                root.put("landekode", countryCodeMap.get(personEmigrationData.getEmigrationCountryCode()));
+                root.put("udrejsedato", formatDate(personEmigrationData.getEffectFrom()));
+            }
+        } else {
+            if (personAddressData != null) {
+                root.put("tilflytningsdato", formatDate(personAddressData.getEffectFrom()));
+                int municipalityCode = personAddressData.getMunicipalityCode();
+                root.put("myndighedskode", municipalityCode);
+                int roadCode = personAddressData.getRoadCode();
+                String houseNumber = personAddressData.getHouseNumber();
+                if (roadCode > 0) {
+                    root.put("vejkode", roadCode);
 
-                root.put("kommune", lookup.municipalityName);
+                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
 
-                String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
-                String roadName = lookup.roadName;
-                if (roadName != null) {
-                    root.put("adresse", this.getAddressFormatted(
-                            roadName,
-                            personAddressData.getHouseNumber(),
-                            null,
-                            null, null,
-                            personAddressData.getFloor(),
-                            personAddressData.getDoor(),
-                            buildingNumber
-                    ));
-                } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
-                    root.put("adresse", formatBNumber(buildingNumber));
+                    root.put("kommune", lookup.municipalityName);
+
+                    String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
+                    String roadName = lookup.roadName;
+                    if (roadName != null) {
+                        root.put("adresse", this.getAddressFormatted(
+                                roadName,
+                                personAddressData.getHouseNumber(),
+                                null,
+                                null, null,
+                                personAddressData.getFloor(),
+                                personAddressData.getDoor(),
+                                buildingNumber
+                        ));
+                    } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
+                        root.put("adresse", formatBNumber(buildingNumber));
+                    }
+
+                    root.put("postnummer", lookup.postalCode);
+                    root.put("bynavn", lookup.postalDistrict);
+                    root.put("stedkode", lookup.localityCode);
                 }
 
-                root.put("postnummer", lookup.postalCode);
-                root.put("bynavn", lookup.postalDistrict);
-                root.put("stedkode", lookup.localityCode);
+                if (municipalityCode > 0 && municipalityCode < 900) {
+                    root.put("landekode", "DK");
+                } else if (municipalityCode > 900) {
+                    root.put("landekode", "GL");
+                }
             }
+        }
 
-            if (municipalityCode > 0 && municipalityCode < 900) {
-                root.put("landekode", "DK");
-            } else if (municipalityCode > 900) {
-                root.put("landekode", "GL");
+        AddressConameDataRecord personAddressConameData = this.getLatest(input.getConame());
+        if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
+            String coname = personAddressConameData.getConame();
+            if (coname != null) {
+                coname = coname.toLowerCase();
+                Matcher m = postboxExtract.matcher(coname);
+                if (m.find()) {
+                    try {
+                        int postbox = Integer.parseInt(m.group(1), 10);
+                        root.put("postboks", postbox);
+                    } catch (NumberFormatException e) {}
+                }
             }
         }
         return root.getNode();
     }
-
 
     @Override
     public Object wrapResult(PersonEntity input, BaseQuery query) {

@@ -43,6 +43,7 @@ import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import javax.persistence.FlushModeType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -191,6 +192,14 @@ public class CprTest {
         }
     }
 
+    private static void transfer(ObjectNode from, ObjectNode to, String field) {
+        if (from.has(field)) {
+            to.set(field, from.get(field));
+        } else {
+            to.remove(field);
+        }
+    }
+
     @Test
     public void testPersonRecordOutput() throws Exception {
         loadPerson();
@@ -200,9 +209,44 @@ public class CprTest {
         LookupService lookupService = new LookupService(session);
         personOutputWrapper.setLookupService(lookupService);
         try {
-            for (PersonEntity entity : QueryManager.getAllEntities(session, PersonEntity.class)) {
+            String ENTITY = "e";
+            Class eClass = PersonEntity.class;
+            org.hibernate.query.Query<PersonEntity> databaseQuery = session.createQuery("select "+ENTITY+" from " + eClass.getCanonicalName() + " " + ENTITY + " join "+ENTITY+".identification i where i.uuid != null", eClass);
+            databaseQuery.setFlushMode(FlushModeType.COMMIT);
+
+            databaseQuery.setMaxResults(1000);
+
+            for (PersonEntity entity : databaseQuery.getResultList()) {
                 ObjectNode oldOutput = (ObjectNode) personOutputWrapper.wrapResult(entity, null);
                 ObjectNode newOutput = (ObjectNode) personOutputWrapper.wrapRecordResult(entity, null);
+                if (oldOutput.has("myndighedskode") && oldOutput.get("myndighedskode").intValue() == 958) {
+                    transfer(newOutput, oldOutput, "myndighedskode");
+                }
+                if (newOutput.has("postboks") && (!oldOutput.has("postboks") || oldOutput.get("postboks").intValue() == 0)) {
+                    transfer(newOutput, oldOutput, "postboks");
+                }
+                if (newOutput.has("vejkode") && newOutput.get("vejkode").intValue() == 9984) {
+                    transfer(newOutput, oldOutput, "adresse");
+                    transfer(newOutput, oldOutput, "bynavn");
+                }
+                if (newOutput.has("statuskodedato")) {
+                    transfer(newOutput, oldOutput, "statuskodedato");
+                }
+                if (oldOutput.has("udlandsadresse")) {
+                    if (oldOutput.get("landekode").textValue().equals("GL") || oldOutput.get("landekode").textValue().equals("DK")) {
+                        oldOutput.remove("udlandsadresse");
+                        oldOutput.remove("udrejsedato");
+                    } else {
+                        oldOutput.remove("myndighedskode");
+                        oldOutput.remove("vejkode");
+                        oldOutput.remove("kommune");
+                        oldOutput.remove("adresse");
+                        oldOutput.remove("postnummer");
+                        oldOutput.remove("stedkode");
+                        oldOutput.remove("bynavn");
+                        oldOutput.remove("tilflytningsdato");
+                    }
+                }
                 try {
                     Assert.assertTrue(oldOutput.equals(newOutput));
                 } catch (AssertionError e) {
@@ -217,7 +261,7 @@ public class CprTest {
         }
     }
 
-        @Test
+    @Test
     public void testPersonPrisme() throws Exception {
         loadPerson();
         loadGladdrregData();
