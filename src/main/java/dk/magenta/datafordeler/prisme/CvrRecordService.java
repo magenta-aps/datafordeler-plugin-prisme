@@ -347,7 +347,6 @@ public class CvrRecordService {
 
                 ObjectNode participantOutput = objectMapper.createObjectNode();
                 ArrayNode organizationsOutput = objectMapper.createArrayNode();
-                participantOutput.set("organisationer", organizationsOutput);
 
                 for (OrganizationRecord organization : participant.getOrganizations()) {
                     ArrayNode memberNodes = objectMapper.createArrayNode();
@@ -369,12 +368,12 @@ public class CvrRecordService {
                         hasEligibleParticipant = true;
                         ObjectNode organizationOutput = objectMapper.createObjectNode();
                         organizationsOutput.add(organizationOutput);
-                        organizationOutput.set("medlemmer", memberNodes);
                         organizationOutput.put("type", organization.getMainType());
                         for (BaseNameRecord organizationName : organization.getNames()) {
                             String name = organizationName.getName();
                             organizationOutput.put("navn", name);
                         }
+                        organizationOutput.set("medlemskaber", memberNodes);
                     }
                 }
                 if (hasEligibleParticipant) {
@@ -388,6 +387,7 @@ public class CvrRecordService {
                     } catch (Exception e) {
                         log.info(e.getMessage());
                     }
+                    participantOutput.set("organisationer", organizationsOutput);
                     participantsOutput.add(participantOutput);
                 }
             }
