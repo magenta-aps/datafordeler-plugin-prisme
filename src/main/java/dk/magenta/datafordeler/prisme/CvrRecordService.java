@@ -42,10 +42,7 @@ import java.io.OutputStream;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
 
 @RestController
@@ -325,15 +322,26 @@ public class CvrRecordService {
     }
 
     private <T extends CvrBitemporalRecord> T getLastUpdated(Collection<T> records, Class<T> tClass) {
-        LocalDate latestEffect = LocalDate.MIN;
-        T latest = null;
+        ArrayList<T> current = new ArrayList<>();
         for (T record : records) {
-            if (record.getValidTo() == null || (latestEffect != null && record.getValidTo().isAfter(latestEffect))) {
-                latestEffect = record.getValidTo();
-                latest = record;
+            if (record.getValidTo() == null) {
+                current.add(record);
             }
         }
-        return latest;
+        if (current.isEmpty()) {
+            LocalDate latestEffect = LocalDate.MIN;
+            for (T record : records) {
+                if (record.getValidTo().isAfter(latestEffect)) {
+                    latestEffect = record.getValidTo();
+                    current.clear();
+                    current.add(record);
+                }
+            }
+        }
+        if (current.size() > 1) {
+            current.sort(Comparator.comparing(CvrBitemporalRecord::getLastUpdated));
+        }
+        return current.isEmpty() ? null : current.get(current.size()-1);
     }
 
     protected void applyAreaRestrictionsToQuery(CompanyRecordQuery query, DafoUserDetails user) throws InvalidClientInputException {
