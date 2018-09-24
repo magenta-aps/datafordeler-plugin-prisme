@@ -249,7 +249,7 @@ public class CvrRecordService {
         CompanyStatusRecord statusRecord = this.getLastUpdated(statusRecords, CompanyStatusRecord.class);
         if (statusRecord != null) {
             root.put("statuskode", statusRecord.getStatus());
-            root.put("statuskodedato", statusRecord.getValidFrom().format(DateTimeFormatter.ISO_LOCAL_DATE));
+            root.put("statuskodedato", statusRecord.getValidFrom() != null ? statusRecord.getValidFrom().format(DateTimeFormatter.ISO_LOCAL_DATE) : null);
         }
 
         AddressRecord addressRecord = this.getLastUpdated(record.getPostalAddress(), AddressRecord.class);
@@ -322,26 +322,19 @@ public class CvrRecordService {
     }
 
     private <T extends CvrBitemporalRecord> T getLastUpdated(Collection<T> records, Class<T> tClass) {
-        ArrayList<T> current = new ArrayList<>();
+        ArrayList<T> list = new ArrayList<>();
         for (T record : records) {
-            if (record.getValidTo() == null) {
-                current.add(record);
+            if (record != null) {
+                list.add(record);
             }
         }
-        if (current.isEmpty()) {
-            LocalDate latestEffect = LocalDate.MIN;
-            for (T record : records) {
-                if (record.getValidTo().isAfter(latestEffect)) {
-                    latestEffect = record.getValidTo();
-                    current.clear();
-                    current.add(record);
-                }
-            }
+        if (list.size() > 1) {
+            list.sort(
+                    Comparator.comparing(CvrBitemporalRecord::getLastUpdated, Comparator.nullsFirst(Comparator.naturalOrder()))
+                    .thenComparing(CvrBitemporalRecord::getValidFrom, Comparator.nullsFirst(Comparator.naturalOrder()))
+            );
         }
-        if (current.size() > 1) {
-            current.sort(Comparator.comparing(CvrBitemporalRecord::getLastUpdated));
-        }
-        return current.isEmpty() ? null : current.get(current.size()-1);
+        return list.isEmpty() ? null : list.get(list.size()-1);
     }
 
     protected void applyAreaRestrictionsToQuery(CompanyRecordQuery query, DafoUserDetails user) throws InvalidClientInputException {
