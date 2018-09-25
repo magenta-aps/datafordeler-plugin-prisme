@@ -342,7 +342,7 @@ public class CvrRecordService {
         Bitemporality now = new Bitemporality(current, current, current, current);
         for (CompanyParticipantRelationRecord participant : record.getParticipants()) {
             RelationParticipantRecord relationParticipantRecord = participant.getRelationParticipantRecord();
-            if ("PERSON".equals(relationParticipantRecord.unitType)) {
+            if (relationParticipantRecord != null && ("PERSON".equals(relationParticipantRecord.unitType) || "ANDEN_DELTAGER".equals(relationParticipantRecord.unitType))) {
                 boolean hasEligibleParticipant = false;
 
                 ObjectNode participantOutput = objectMapper.createObjectNode();
@@ -382,7 +382,12 @@ public class CvrRecordService {
                     try {
                         ParticipantRecord participantRecord = directLookup.participantLookup(Long.toString(unitNumber, 10));
                         if (participantRecord != null) {
-                            participantOutput.put("deltagerPnr", String.format("%010d", participantRecord.getBusinessKey()));
+                            Long businessKey = participantRecord.getBusinessKey();
+                            if (Objects.equals(businessKey, unitNumber)) {
+                                // Foreigner
+                            } else {
+                                participantOutput.put("deltagerPnr", String.format("%010d", businessKey));
+                            }
                         }
                     } catch (Exception e) {
                         log.info(e.getMessage());
