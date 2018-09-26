@@ -42,10 +42,7 @@ import java.io.OutputStream;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
 
 @RestController
@@ -262,12 +259,12 @@ public class CvrRecordService {
         }
         if (addressRecord != null) {
             Address address = addressRecord.getAddress();
-            Municipality municipality = address.getMunicipality();
+            AddressMunicipalityRecord municipality = addressRecord.getMunicipality();
             int municipalityCode = 0;
             if (municipality != null) {
-                municipalityCode = municipality.getCode();
+                municipalityCode = municipality.getMunicipalityCode();
                 root.put("myndighedskode", municipalityCode);
-                root.put("kommune", municipality.getName());
+                root.put("kommune", municipality.getMunicipalityName());
             }
 
             int roadCode = address.getRoadCode();
@@ -325,15 +322,22 @@ public class CvrRecordService {
     }
 
     private <T extends CvrBitemporalRecord> T getLastUpdated(Collection<T> records, Class<T> tClass) {
-        LocalDate latestEffect = LocalDate.MIN;
-        T latest = null;
+        ArrayList<T> list = new ArrayList<>();
         for (T record : records) {
-            if (record.getValidTo() == null || (latestEffect != null && record.getValidTo().isAfter(latestEffect))) {
-                latestEffect = record.getValidTo();
-                latest = record;
+            if (record != null) {
+                list.add(record);
             }
         }
-        return latest;
+        if (list.size() > 1) {
+            list.sort(
+                    Comparator.comparing(
+                            CvrBitemporalRecord::getValidFrom, Comparator.nullsFirst(Comparator.naturalOrder())
+                    ).thenComparing(
+                            CvrBitemporalRecord::getLastUpdated, Comparator.nullsFirst(Comparator.naturalOrder())
+                    )
+            );
+        }
+        return list.isEmpty() ? null : list.get(list.size()-1);
     }
 
     protected void applyAreaRestrictionsToQuery(CompanyRecordQuery query, DafoUserDetails user) throws InvalidClientInputException {

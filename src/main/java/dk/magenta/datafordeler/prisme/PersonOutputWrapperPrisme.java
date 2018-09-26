@@ -137,9 +137,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
         if (personForeignAddressData != null && (personAddressData == null || personForeignAddressData.getEffectFrom().isAfter(personAddressData.getEffectFrom()))) {
             String address = personForeignAddressData.join("\n");
-            if (!address.isEmpty()) {
-                root.put("udlandsadresse", personForeignAddressData.join("\n"));
-            }
+            root.put("udlandsadresse", address);
             ForeignAddressEmigrationDataRecord personEmigrationData = this.getLatest(input.getEmigration());
             if (personEmigrationData != null) {
                 root.put("landekode", countryCodeMap.get(personEmigrationData.getEmigrationCountryCode()));
