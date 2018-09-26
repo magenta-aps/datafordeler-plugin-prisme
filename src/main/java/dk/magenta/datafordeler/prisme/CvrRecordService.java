@@ -88,33 +88,36 @@ public class CvrRecordService {
         HashSet<String> cvrNumbers = new HashSet<>();
         cvrNumbers.add(cvrNummer);
 
-        CompanyRecordQuery query = new CompanyRecordQuery();
-        query.setCvrNumre(cvrNumbers);
-        this.applyAreaRestrictionsToQuery(query, user);
 
         boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
+        Collection<CompanyRecord> records = this.getCompanies(cvrNumbers, user);
+        if (!records.isEmpty()) {
+            final Session lookupSession = sessionManager.getSessionFactory().openSession();
+            try {
+                LookupService service = new LookupService(lookupSession);
+                CompanyRecord companyRecord = records.iterator().next();
+                return objectMapper.writeValueAsString(
+                        this.wrapRecord(companyRecord, service, returnParticipantDetails)
+                );
+            } finally {
+                lookupSession.close();
+            }
+        }
+        throw new HttpNotFoundException("No entity with CVR number " + cvrNummer + " was found");
+    }
+
+    protected Collection<CompanyRecord> getCompanies(Collection<String> cvrNumbers, DafoUserDetails user) throws DataFordelerException {
+        CompanyRecordQuery query = new CompanyRecordQuery();
+        query.setCvrNumre(cvrNumbers);
+        this.applyAreaRestrictionsToQuery(query, user);
         Session session = sessionManager.getSessionFactory().openSession();
         try {
-            List<CompanyRecord> records = QueryManager.getAllEntities(session, query, CompanyRecord.class);
-            if (!records.isEmpty()) {
-                final Session lookupSession = sessionManager.getSessionFactory().openSession();
-                try {
-                    LookupService service = new LookupService(lookupSession);
-                    CompanyRecord companyRecord = records.iterator().next();
-                    return objectMapper.writeValueAsString(
-                            this.wrapRecord(companyRecord, service, returnParticipantDetails)
-                    );
-                } finally {
-                    lookupSession.close();
-                }
-            }
-            throw new HttpNotFoundException("No entity with CVR number " + cvrNummer + " was found");
+            return QueryManager.getAllEntities(session, query, CompanyRecord.class);
         } finally {
             session.close();
         }
     }
-
 
     private static final String PARAM_UPDATED_SINCE = "updatedSince";
     private static final String PARAM_CVR_NUMBER = "cvrNumber";
@@ -163,6 +166,7 @@ public class CvrRecordService {
         if (cvr.isEmpty()) {
             throw new InvalidClientInputException("Please specify at least one CVR number");
         }
+        boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
         CompanyRecordQuery query = new CompanyRecordQuery();
         query.setCvrNumre(cvrNumbers);
@@ -189,7 +193,7 @@ public class CvrRecordService {
                         outputStream.write(("\"" + record.getCvrNumber() + "\":").getBytes());
                         outputStream.write(
                                 objectMapper.writeValueAsString(
-                                        CvrRecordService.this.wrapRecord(record, lookupService, false)
+                                        CvrRecordService.this.wrapRecord(record, lookupService, returnParticipantDetails)
                                 ).getBytes("UTF-8")
                         );
                     }
@@ -228,7 +232,7 @@ public class CvrRecordService {
         return cvrNumbers;
     }
 
-    private JsonNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
+    protected JsonNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
         root.put("cvrNummer", record.getCvrNumber());
@@ -292,16 +296,11 @@ public class CvrRecordService {
             }
 
             PostCode postCode = address.getPost();
-            if (postCode != null) {
-                root.put("postnummer", postCode.getPostCode());
-                root.put("bynavn", postCode.getPostDistrict());
-            } else {
-                if (address.getPostnummer() != 0) {
-                    root.put("postnummer", address.getPostnummer());
-                }
-                if (address.getPostdistrikt() != null) {
-                    root.put("bynavn", address.getPostdistrikt());
-                }
+            if (address.getPostnummer() != 0) {
+                root.put("postnummer", address.getPostnummer());
+            }
+            if (address.getPostdistrikt() != null) {
+                root.put("bynavn", address.getPostdistrikt());
             }
             root.put("landekode", address.getCountryCode());
 
@@ -331,7 +330,7 @@ public class CvrRecordService {
         return root;
     }
 
-    private ArrayNode getParticipants(CompanyRecord record) {
+    protected ArrayNode getParticipants(CompanyRecord record) {
         ArrayNode participantsOutput = objectMapper.createArrayNode();
         OffsetDateTime current = OffsetDateTime.now();
         Bitemporality now = new Bitemporality(current, current, current, current);
