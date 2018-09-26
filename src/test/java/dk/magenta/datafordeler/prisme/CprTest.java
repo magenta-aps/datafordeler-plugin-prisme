@@ -15,6 +15,7 @@ import dk.magenta.datafordeler.core.util.InputStreamReader;
 import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
+import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
@@ -43,6 +44,7 @@ import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import javax.persistence.FlushModeType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,6 +82,12 @@ public class CprTest {
 
     @Autowired
     private CprPlugin cprPlugin;
+
+    @Autowired
+    private CprService cprService;
+
+    @Autowired
+    private PersonOutputWrapperPrisme personOutputWrapper;
 
     HashSet<Entity> createdEntities = new HashSet<>();
 
@@ -180,6 +188,75 @@ public class CprTest {
             loadMunicipality(session);
             loadPostalCode(session);
             transaction.commit();
+        } finally {
+            session.close();
+        }
+    }
+
+    private static void transfer(ObjectNode from, ObjectNode to, String field) {
+        if (from.has(field)) {
+            to.set(field, from.get(field));
+        } else {
+            to.remove(field);
+        }
+    }
+
+    @Test
+    public void testPersonRecordOutput() throws Exception {
+        loadPerson();
+        loadGladdrregData();
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        LookupService lookupService = new LookupService(session);
+        personOutputWrapper.setLookupService(lookupService);
+        try {
+            String ENTITY = "e";
+            Class eClass = PersonEntity.class;
+            org.hibernate.query.Query<PersonEntity> databaseQuery = session.createQuery("select "+ENTITY+" from " + eClass.getCanonicalName() + " " + ENTITY + " join "+ENTITY+".identification i where i.uuid != null", eClass);
+            databaseQuery.setFlushMode(FlushModeType.COMMIT);
+
+            databaseQuery.setMaxResults(1000);
+
+            for (PersonEntity entity : databaseQuery.getResultList()) {
+                ObjectNode oldOutput = (ObjectNode) personOutputWrapper.wrapResult(entity, null);
+                ObjectNode newOutput = (ObjectNode) personOutputWrapper.wrapRecordResult(entity, null);
+                if (oldOutput.has("myndighedskode") && oldOutput.get("myndighedskode").intValue() == 958) {
+                    transfer(newOutput, oldOutput, "myndighedskode");
+                }
+                if (newOutput.has("postboks") && (!oldOutput.has("postboks") || oldOutput.get("postboks").intValue() == 0)) {
+                    transfer(newOutput, oldOutput, "postboks");
+                }
+                if (newOutput.has("vejkode") && newOutput.get("vejkode").intValue() == 9984) {
+                    transfer(newOutput, oldOutput, "adresse");
+                    transfer(newOutput, oldOutput, "bynavn");
+                }
+                if (newOutput.has("statuskodedato")) {
+                    transfer(newOutput, oldOutput, "statuskodedato");
+                }
+                if (oldOutput.has("udlandsadresse")) {
+                    if (oldOutput.get("landekode").textValue().equals("GL") || oldOutput.get("landekode").textValue().equals("DK")) {
+                        oldOutput.remove("udlandsadresse");
+                        oldOutput.remove("udrejsedato");
+                    } else {
+                        oldOutput.remove("myndighedskode");
+                        oldOutput.remove("vejkode");
+                        oldOutput.remove("kommune");
+                        oldOutput.remove("adresse");
+                        oldOutput.remove("postnummer");
+                        oldOutput.remove("stedkode");
+                        oldOutput.remove("bynavn");
+                        oldOutput.remove("tilflytningsdato");
+                    }
+                }
+                try {
+                    Assert.assertTrue(oldOutput.equals(newOutput));
+                } catch (AssertionError e) {
+                    System.out.println(entity.getId()+": "+entity.getPersonnummer());
+                    System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(oldOutput));
+                    System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newOutput));
+                    throw e;
+                }
+            }
         } finally {
             session.close();
         }

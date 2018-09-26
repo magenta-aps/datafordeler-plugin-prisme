@@ -20,7 +20,7 @@ import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
-import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
+import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,8 +46,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @RestController
-@RequestMapping("/prisme/cpr/1")
-public class CprService {
+@RequestMapping("/prisme/cpr/2")
+public class CprRecordService {
 
     @Autowired
     SessionManager sessionManager;
@@ -64,14 +64,14 @@ public class CprService {
     @Autowired
     private MonitorService monitorService;
 
-    private Logger log = LoggerFactory.getLogger(CprService.class);
+    private Logger log = LoggerFactory.getLogger(CprRecordService.class);
 
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;
 
     @PostConstruct
     public void init() {
-        this.monitorService.addAccessCheckPoint("/prisme/cpr/1/1234");
+        this.monitorService.addAccessCheckPoint("/prisme/cpr/2/1234");
     }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
@@ -90,7 +90,7 @@ public class CprService {
             LookupService lookupService = new LookupService(session);
             personOutputWrapper.setLookupService(lookupService);
 
-            PersonQuery personQuery = new PersonQuery();
+            PersonRecordQuery personQuery = new PersonRecordQuery();
             personQuery.setPersonnummer(cprNummer);
 
             OffsetDateTime now = OffsetDateTime.now();
@@ -106,7 +106,7 @@ public class CprService {
 
             if (!personEntities.isEmpty()) {
                 PersonEntity personEntity = personEntities.get(0);
-                return objectMapper.writeValueAsString(personOutputWrapper.wrapResult(personEntity, personQuery));
+                return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
             }
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
@@ -148,7 +148,7 @@ public class CprService {
         );
         this.checkAndLogAccess(loggerHelper);
 
-        PersonQuery personQuery = new PersonQuery();
+        PersonRecordQuery personQuery = new PersonRecordQuery();
         personQuery.setPageSize(Integer.MAX_VALUE);
 
         personQuery.setRecordAfter(updatedSince);
@@ -168,55 +168,51 @@ public class CprService {
         personQuery.setEffectFrom(now);
         personQuery.setEffectTo(now);
 
-        return new StreamingResponseBody() {
+        return outputStream -> {
 
-            @Override
-            public void writeTo(OutputStream outputStream) throws IOException {
+            final Session lookupSession = sessionManager.getSessionFactory().openSession();
+            LookupService lookupService = new LookupService(lookupSession);
+            personOutputWrapper.setLookupService(lookupService);
 
-                final Session lookupSession = sessionManager.getSessionFactory().openSession();
-                LookupService lookupService = new LookupService(lookupSession);
-                personOutputWrapper.setLookupService(lookupService);
+            final Session entitySession = sessionManager.getSessionFactory().openSession();
+            try {
 
-                final Session entitySession = sessionManager.getSessionFactory().openSession();
-                try {
+                personQuery.applyFilters(entitySession);
+                CprRecordService.this.applyAreaRestrictionsToQuery(personQuery, user);
 
-                    personQuery.applyFilters(entitySession);
-                    CprService.this.applyAreaRestrictionsToQuery(personQuery, user);
+                Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, personQuery, PersonEntity.class);
+                outputStream.write(START_OBJECT);
+                personEntities.forEach(new Consumer<PersonEntity>() {
+                    boolean first = true;
 
-                    Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, personQuery, PersonEntity.class);
-                    outputStream.write(START_OBJECT);
-                    personEntities.forEach(new Consumer<PersonEntity>() {
-                        boolean first = true;
-
-                        @Override
-                        public void accept(PersonEntity personEntity) {
-                            try {
-                                if (!first) {
-                                    outputStream.flush();
-                                    outputStream.write(OBJECT_SEPARATOR);
-                                } else {
-                                    first = false;
-                                }
-                                outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
-                                outputStream.write(
-                                        objectMapper.writeValueAsString(
-                                                personOutputWrapper.wrapResult(personEntity, personQuery)
-                                        ).getBytes(Charset.forName("UTF-8"))
-                                );
-                            } catch (IOException e) {
-                                e.printStackTrace();
+                    @Override
+                    public void accept(PersonEntity personEntity) {
+                        try {
+                            if (!first) {
+                                outputStream.flush();
+                                outputStream.write(OBJECT_SEPARATOR);
+                            } else {
+                                first = false;
                             }
-                            entitySession.evict(personEntity);
+                            outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
+                            outputStream.write(
+                                    objectMapper.writeValueAsString(
+                                            personOutputWrapper.wrapRecordResult(personEntity, personQuery)
+                                    ).getBytes(Charset.forName("UTF-8"))
+                            );
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
-                    });
-                    outputStream.write(END_OBJECT);
-                    outputStream.flush();
-                } catch (InvalidClientInputException e) {
-                    e.printStackTrace();
-                } finally {
-                    entitySession.close();
-                    lookupSession.close();
-                }
+                        entitySession.evict(personEntity);
+                    }
+                });
+                outputStream.write(END_OBJECT);
+                outputStream.flush();
+            } catch (InvalidClientInputException e) {
+                e.printStackTrace();
+            } finally {
+                entitySession.close();
+                lookupSession.close();
             }
         };
     }
@@ -232,7 +228,7 @@ public class CprService {
         }
     }
 
-    protected void applyAreaRestrictionsToQuery(PersonQuery query, DafoUserDetails user) throws InvalidClientInputException {
+    protected void applyAreaRestrictionsToQuery(PersonRecordQuery query, DafoUserDetails user) throws InvalidClientInputException {
         Collection<AreaRestriction> restrictions = user.getAreaRestrictionsForRole(CprRolesDefinition.READ_CPR_ROLE);
         AreaRestrictionDefinition areaRestrictionDefinition = this.cprPlugin.getAreaRestrictionDefinition();
         AreaRestrictionType municipalityType = areaRestrictionDefinition.getAreaRestrictionTypeByName(CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER);
