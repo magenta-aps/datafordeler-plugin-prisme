@@ -266,12 +266,12 @@ public class CvrRecordService {
         }
         if (addressRecord != null) {
             Address address = addressRecord.getAddress();
-            Municipality municipality = address.getMunicipality();
+            AddressMunicipalityRecord municipality = addressRecord.getMunicipality();
             int municipalityCode = 0;
             if (municipality != null) {
-                municipalityCode = municipality.getCode();
+                municipalityCode = municipality.getMunicipalityCode();
                 root.put("myndighedskode", municipalityCode);
-                root.put("kommune", municipality.getName());
+                root.put("kommune", municipality.getMunicipalityName());
             }
 
             int roadCode = address.getRoadCode();
@@ -406,8 +406,11 @@ public class CvrRecordService {
         }
         if (list.size() > 1) {
             list.sort(
-                    Comparator.comparing(CvrBitemporalRecord::getLastUpdated, Comparator.nullsFirst(Comparator.naturalOrder()))
-                    .thenComparing(CvrBitemporalRecord::getValidFrom, Comparator.nullsFirst(Comparator.naturalOrder()))
+                    Comparator.comparing(
+                            CvrBitemporalRecord::getValidFrom, Comparator.nullsFirst(Comparator.naturalOrder())
+                    ).thenComparing(
+                            CvrBitemporalRecord::getLastUpdated, Comparator.nullsFirst(Comparator.naturalOrder())
+                    )
             );
         }
         return list.isEmpty() ? null : list.get(list.size()-1);
