@@ -336,12 +336,11 @@ public class CvrRecordService {
         Bitemporality now = new Bitemporality(current, current, current, current);
         for (CompanyParticipantRelationRecord participant : record.getParticipants()) {
             RelationParticipantRecord relationParticipantRecord = participant.getRelationParticipantRecord();
+            HashSet<MembershipDescription> membershipDescriptions = new HashSet<>();
             if (relationParticipantRecord != null && ("PERSON".equals(relationParticipantRecord.unitType) || "ANDEN_DELTAGER".equals(relationParticipantRecord.unitType))) {
                 boolean hasEligibleParticipant = false;
-
                 ObjectNode participantOutput = objectMapper.createObjectNode();
                 ArrayNode organizationsOutput = objectMapper.createArrayNode();
-
                 for (OrganizationRecord organization : participant.getOrganizations()) {
                     ArrayNode memberNodes = objectMapper.createArrayNode();
                     boolean found = false;
@@ -354,6 +353,11 @@ public class CvrRecordService {
                                     orgMemberNode.put("funktion", memberAttributeValue.getValue());
                                     memberNodes.add(orgMemberNode);
                                     found = true;
+                                    for (BaseNameRecord organizationName : organization.getNames()) {
+                                        membershipDescriptions.add(
+                                                new MembershipDescription(organization.getMainType(), organizationName.getName(), memberAttributeValue.getValue())
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -386,6 +390,13 @@ public class CvrRecordService {
                     } catch (Exception e) {
                         log.info(e.getMessage());
                     }
+                    boolean ownerMatch = false;
+                    for (MembershipDescription d : membershipDescriptions) {
+                        if (d.isOwner()) {
+                            ownerMatch = true;
+                        }
+                    }
+                    participantOutput.put("ownerMatch", ownerMatch);
                     participantOutput.set("organisationer", organizationsOutput);
                     participantsOutput.add(participantOutput);
                 }
