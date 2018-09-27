@@ -258,7 +258,7 @@ public class CvrRecordService {
         CompanyStatusRecord statusRecord = this.getLastUpdated(statusRecords);
         if (statusRecord != null) {
             root.put("statuskode", statusRecord.getStatus());
-            root.put("statuskodedato", statusRecord.getValidFrom().format(DateTimeFormatter.ISO_LOCAL_DATE));
+            root.put("statuskodedato", statusRecord.getValidFrom() != null ? statusRecord.getValidFrom().format(DateTimeFormatter.ISO_LOCAL_DATE) : null);
         }
 
         AddressRecord addressRecord = this.getLastUpdated(record.getPostalAddress());
