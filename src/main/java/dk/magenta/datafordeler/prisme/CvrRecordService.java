@@ -75,9 +75,9 @@ public class CvrRecordService {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
     }
 
-    private static final String PARAM_UPDATED_SINCE = "updatedSince";
-    private static final String PARAM_CVR_NUMBER = "cvrNumber";
-    private static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
+    public static final String PARAM_UPDATED_SINCE = "updatedSince";
+    public static final String PARAM_CVR_NUMBER = "cvrNumber";
+    public static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
@@ -124,9 +124,9 @@ public class CvrRecordService {
         }
     }
 
-    private static final byte[] START_OBJECT = "{".getBytes();
-    private static final byte[] END_OBJECT = "}".getBytes();
-    private static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
+    protected static final byte[] START_OBJECT = "{".getBytes();
+    protected static final byte[] END_OBJECT = "}".getBytes();
+    protected static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
 
     @RequestMapping(method = RequestMethod.POST, path = "/", produces = {MediaType.APPLICATION_JSON_VALUE})
     public StreamingResponseBody getBulk(HttpServletRequest request)
@@ -209,7 +209,6 @@ public class CvrRecordService {
             }
         };
     }
-
 
     protected void checkAndLogAccess(LoggerHelper loggerHelper, boolean includeCpr) throws AccessDeniedException, AccessRequiredException {
         try {
