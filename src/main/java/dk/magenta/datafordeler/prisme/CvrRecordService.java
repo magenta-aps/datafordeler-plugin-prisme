@@ -219,7 +219,7 @@ public class CvrRecordService {
     }
 
     private static Pattern nonDigits = Pattern.compile("[^\\d]");
-    private List<String> getCvrNumber(JsonNode node) {
+    protected List<String> getCvrNumber(JsonNode node) {
         ArrayList<String> cvrNumbers = new ArrayList<>();
         if (node.isArray()) {
             for (JsonNode item : (ArrayNode) node) {
