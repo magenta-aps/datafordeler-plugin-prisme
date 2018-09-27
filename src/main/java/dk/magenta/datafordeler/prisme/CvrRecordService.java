@@ -96,32 +96,27 @@ public class CvrRecordService {
         HashSet<String> cvrNumbers = new HashSet<>();
         cvrNumbers.add(cvrNummer);
 
-        Collection<CompanyRecord> records = this.getCompanies(cvrNumbers, user);
-        if (!records.isEmpty()) {
-            final Session lookupSession = sessionManager.getSessionFactory().openSession();
-            try {
-                LookupService service = new LookupService(lookupSession);
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            Collection<CompanyRecord> records = this.getCompanies(session, cvrNumbers, user);
+            if (!records.isEmpty()) {
+                LookupService service = new LookupService(session);
                 CompanyRecord companyRecord = records.iterator().next();
                 return objectMapper.writeValueAsString(
                         this.wrapRecord(companyRecord, service, returnParticipantDetails)
                 );
-            } finally {
-                lookupSession.close();
             }
+        } finally {
+            session.close();
         }
         throw new HttpNotFoundException("No entity with CVR number " + cvrNummer + " was found");
     }
 
-    protected Collection<CompanyRecord> getCompanies(Collection<String> cvrNumbers, DafoUserDetails user) throws DataFordelerException {
+    protected Collection<CompanyRecord> getCompanies(Session session, Collection<String> cvrNumbers, DafoUserDetails user) throws DataFordelerException {
         CompanyRecordQuery query = new CompanyRecordQuery();
         query.setCvrNumre(cvrNumbers);
         this.applyAreaRestrictionsToQuery(query, user);
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            return QueryManager.getAllEntities(session, query, CompanyRecord.class);
-        } finally {
-            session.close();
-        }
+        return QueryManager.getAllEntities(session, query, CompanyRecord.class);
     }
 
     protected static final byte[] START_OBJECT = "{".getBytes();
