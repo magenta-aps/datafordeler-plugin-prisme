@@ -17,6 +17,7 @@ import dk.magenta.datafordeler.core.user.DafoUserDetails;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.core.util.LoggerHelper;
+import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
@@ -74,22 +75,26 @@ public class CvrRecordService {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
     }
 
+    private static final String PARAM_UPDATED_SINCE = "updatedSince";
+    private static final String PARAM_CVR_NUMBER = "cvrNumber";
+    private static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
+
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
             throws DataFordelerException, JsonProcessingException {
 
+        boolean returnParticipantDetails = "1".equals(request.getParameter(PARAM_RETURN_PARTICIPANT_DETAILS));
+
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
         LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
         loggerHelper.info(
-                "Incoming REST request for PrismeCvrService with cvrNummer " + cvrNummer
+                "Incoming REST request for PrismeCvrService with cvrNummer " + cvrNummer + " and " +
+                        PARAM_RETURN_PARTICIPANT_DETAILS + " = " + returnParticipantDetails
         );
-        this.checkAndLogAccess(loggerHelper);
+        this.checkAndLogAccess(loggerHelper, returnParticipantDetails);
 
         HashSet<String> cvrNumbers = new HashSet<>();
         cvrNumbers.add(cvrNummer);
-
-
-        boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
         Collection<CompanyRecord> records = this.getCompanies(cvrNumbers, user);
         if (!records.isEmpty()) {
@@ -119,8 +124,6 @@ public class CvrRecordService {
         }
     }
 
-    private static final String PARAM_UPDATED_SINCE = "updatedSince";
-    private static final String PARAM_CVR_NUMBER = "cvrNumber";
     private static final byte[] START_OBJECT = "{".getBytes();
     private static final byte[] END_OBJECT = "}".getBytes();
     private static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
@@ -143,15 +146,17 @@ public class CvrRecordService {
 
         final List<String> cvrNumbers = (requestObject.has(PARAM_CVR_NUMBER)) ? this.getCvrNumber(requestObject.get(PARAM_CVR_NUMBER)) : null;
 
+        boolean returnParticipantDetails = "1".equals(request.getParameter(PARAM_RETURN_PARTICIPANT_DETAILS));
 
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
         LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
         loggerHelper.info(
                 "Incoming REST request for PrismeCprService with " +
-                        PARAM_UPDATED_SINCE + " = " + updatedSince + " and " +
-                        PARAM_CVR_NUMBER + " = " + (cvrNumbers != null && cvrNumbers.size() > 10 ? (cvrNumbers.size() + " cpr numbers") : cvrNumbers)
+                        PARAM_UPDATED_SINCE + " = " + updatedSince + ", " +
+                        PARAM_CVR_NUMBER + " = " + (cvrNumbers != null && cvrNumbers.size() > 10 ? (cvrNumbers.size() + " cpr numbers") : cvrNumbers) + " and " +
+                        PARAM_RETURN_PARTICIPANT_DETAILS + " = " + returnParticipantDetails
         );
-        this.checkAndLogAccess(loggerHelper);
+        this.checkAndLogAccess(loggerHelper, returnParticipantDetails);
 
         HashSet<String> cvr = new HashSet<>();
 
@@ -166,7 +171,6 @@ public class CvrRecordService {
         if (cvr.isEmpty()) {
             throw new InvalidClientInputException("Please specify at least one CVR number");
         }
-        boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
         CompanyRecordQuery query = new CompanyRecordQuery();
         query.setCvrNumre(cvrNumbers);
@@ -207,9 +211,12 @@ public class CvrRecordService {
     }
 
 
-    protected void checkAndLogAccess(LoggerHelper loggerHelper) throws AccessDeniedException, AccessRequiredException {
+    protected void checkAndLogAccess(LoggerHelper loggerHelper, boolean includeCpr) throws AccessDeniedException, AccessRequiredException {
         try {
             loggerHelper.getUser().checkHasSystemRole(CvrRolesDefinition.READ_CVR_ROLE);
+            if (includeCpr) {
+                loggerHelper.getUser().checkHasSystemRole(CprRolesDefinition.READ_CPR_ROLE);
+            }
         }
         catch (AccessDeniedException e) {
             loggerHelper.info("Access denied: " + e.getMessage());
