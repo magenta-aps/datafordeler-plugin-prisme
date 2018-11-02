@@ -25,6 +25,8 @@ import dk.magenta.datafordeler.cvr.data.company.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.data.unversioned.Address;
 import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 import dk.magenta.datafordeler.cvr.records.*;
+import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
+import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +45,9 @@ import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/prisme/cvr/1")
@@ -67,6 +71,9 @@ public class CvrRecordService {
     @Autowired
     private DirectLookup directLookup;
 
+    @Autowired
+    private GerCompanyLookup gerCompanyLookup;
+
     private Logger log = LoggerFactory.getLogger(CvrRecordService.class);
 
     @PostConstruct
@@ -88,42 +95,47 @@ public class CvrRecordService {
         HashSet<String> cvrNumbers = new HashSet<>();
         cvrNumbers.add(cvrNummer);
 
-
         boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
-        Collection<CompanyRecord> records = this.getCompanies(cvrNumbers, user);
-        if (!records.isEmpty()) {
-            final Session lookupSession = sessionManager.getSessionFactory().openSession();
-            try {
-                LookupService service = new LookupService(lookupSession);
+        Session session = sessionManager.getSessionFactory().openSession();
+        LookupService service = new LookupService(session);
+        try {
+            ObjectNode formattedRecord = null;
+
+            Collection<CompanyRecord> records = this.getCompanies(session, cvrNumbers, user);
+            if (!records.isEmpty()) {
                 CompanyRecord companyRecord = records.iterator().next();
-                return objectMapper.writeValueAsString(
-                        this.wrapRecord(companyRecord, service, returnParticipantDetails)
-                );
-            } finally {
-                lookupSession.close();
+                formattedRecord = this.wrapRecord(companyRecord, service, returnParticipantDetails);
+            } else {
+                Collection<CompanyEntity> companyEntities = gerCompanyLookup.lookup(session, cvrNumbers);
+                if (!companyEntities.isEmpty()) {
+                    CompanyEntity companyEntity = companyEntities.iterator().next();
+                    formattedRecord = this.wrapGerCompany(companyEntity, service, returnParticipantDetails);
+                }
             }
+
+            if (formattedRecord != null) {
+                return objectMapper.writeValueAsString(formattedRecord);
+            }
+        } finally {
+            session.close();
         }
         throw new HttpNotFoundException("No entity with CVR number " + cvrNummer + " was found");
     }
 
-    protected Collection<CompanyRecord> getCompanies(Collection<String> cvrNumbers, DafoUserDetails user) throws DataFordelerException {
+    protected Collection<CompanyRecord> getCompanies(Session session, Collection<String> cvrNumbers, DafoUserDetails user) throws DataFordelerException {
         CompanyRecordQuery query = new CompanyRecordQuery();
         query.setCvrNumre(cvrNumbers);
         this.applyAreaRestrictionsToQuery(query, user);
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            return QueryManager.getAllEntities(session, query, CompanyRecord.class);
-        } finally {
-            session.close();
-        }
+        return QueryManager.getAllEntities(session, query, CompanyRecord.class);
     }
 
-    private static final String PARAM_UPDATED_SINCE = "updatedSince";
-    private static final String PARAM_CVR_NUMBER = "cvrNumber";
-    private static final byte[] START_OBJECT = "{".getBytes();
-    private static final byte[] END_OBJECT = "}".getBytes();
-    private static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
+    protected static final String PARAM_UPDATED_SINCE = "updatedSince";
+    protected static final String PARAM_CVR_NUMBER = "cvrNumber";
+    protected static final byte[] START_OBJECT = "{".getBytes();
+    protected static final byte[] END_OBJECT = "}".getBytes();
+    protected static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
+    protected static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
 
     @RequestMapping(method = RequestMethod.POST, path = "/", produces = {MediaType.APPLICATION_JSON_VALUE})
     public StreamingResponseBody getBulk(HttpServletRequest request)
@@ -218,7 +230,7 @@ public class CvrRecordService {
     }
 
     private static Pattern nonDigits = Pattern.compile("[^\\d]");
-    private List<String> getCvrNumber(JsonNode node) {
+    protected List<String> getCvrNumber(JsonNode node) {
         ArrayList<String> cvrNumbers = new ArrayList<>();
         if (node.isArray()) {
             for (JsonNode item : (ArrayNode) node) {
@@ -232,7 +244,7 @@ public class CvrRecordService {
         return cvrNumbers;
     }
 
-    protected JsonNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
+    protected ObjectNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
         root.put("cvrNummer", record.getCvrNumber());
@@ -411,6 +423,116 @@ public class CvrRecordService {
             );
         }
         return list.isEmpty() ? null : list.get(list.size()-1);
+    }
+
+    Pattern postcodePattern = Pattern.compile("(\\d{4}) (.*)");
+
+    private static HashMap<Integer, String> municipalityMap = new HashMap<>();
+    static {
+        municipalityMap.put(955, "Kommune Kujalleq");
+        municipalityMap.put(956, "Kommuneqarfik Sermersooq");
+        municipalityMap.put(957, "Qeqqata Kommunia");
+        municipalityMap.put(958, "Qaasuitsup Kommunia");
+        municipalityMap.put(959, "Kommune Qeqertalik");
+        municipalityMap.put(960, "Avannaata Kommunia");
+    }
+
+
+    protected ObjectNode wrapGerCompany(CompanyEntity entity, LookupService lookupService, boolean returnParticipantDetails) {
+        ObjectNode root = objectMapper.createObjectNode();
+
+        root.put("cvrNummer", entity.getGerNr());
+        root.put("navn", entity.getName());
+        root.put("forretningsområde", entity.getBusinessText());
+
+        root.put("statuskode", entity.getStatusGuid().toString());
+        root.put("statuskodedato", entity.getStatusChange() != null ? entity.getStatusChange().format(DateTimeFormatter.ISO_LOCAL_DATE) : null);
+
+        Integer municipalityCode = entity.getMunicipalityCode();
+        root.put("myndighedskode", municipalityCode);
+        if (municipalityCode != null) {
+            if (municipalityMap.containsKey(municipalityCode)) {
+                root.put("kommune", municipalityMap.get(municipalityCode));
+            }
+        }
+
+        //root.put("vejkode", roadCode);
+        root.put("stedkode", entity.getLocalityCode());
+
+        Integer countryCode = entity.getCountryCode();
+        if (countryCode != null && countryCode != 0) {
+            root.put("landekode", countryCode);
+        }
+
+        if (countryCode == 8 || countryCode == 406) { // Denmark or Greenland
+
+            String address = entity.getAddress1();
+            if (address == null || address.isEmpty()) {
+                if (!entity.getAddress2().contains("Postboks")) {
+                    address = entity.getAddress2();
+                }
+            }
+            root.put("adresse", address);
+
+            String boxNr = entity.getBoxNr();
+            if (boxNr != null && !boxNr.trim().isEmpty()) {
+                root.put("postboks", boxNr.trim());
+            }
+
+            Matcher addressMatcher = postcodePattern.matcher(entity.getAddress3());
+            if (addressMatcher.find()) {
+                root.put("postnummer", addressMatcher.group(1));
+                root.put("bynavn", addressMatcher.group(2));
+            } else {
+                Integer postCode = entity.getPostNr();
+                if (postCode != null && postCode != 0) {
+                    root.put("postnummer", postCode);
+                }
+            }
+        } else {
+            StringJoiner address = new StringJoiner("\n");
+            String[] parts = new String[]{
+                entity.getAddress1(), entity.getAddress2(), entity.getAddress3()
+            };
+            for (String part : parts) {
+                if (part != null && !part.isEmpty()) {
+                    address.add(part);
+                }
+            }
+            root.put("adresse", address.toString());
+        }
+
+
+//
+//            root.put("bynavn", address.getPostdistrikt());
+
+
+        String coName = entity.getCoName();
+        if (coName != null) {
+            root.put("co", coName);
+        }
+
+
+        String emailAddress = entity.getEmail();
+        if (emailAddress != null) {
+            root.put("email", emailAddress);
+        }
+
+        String phoneNumber = entity.getPhone();
+        if (phoneNumber != null) {
+            root.put("telefon", phoneNumber);
+        }
+
+        String faxNumber = entity.getFax();
+        if (faxNumber != null) {
+            root.put("telefax", faxNumber);
+        }
+
+        /*if (returnParticipantDetails) {
+            root.set("deltagere", this.getParticipants(entity));
+        }*/
+
+        return root;
     }
 
     protected void applyAreaRestrictionsToQuery(CompanyRecordQuery query, DafoUserDetails user) throws InvalidClientInputException {
