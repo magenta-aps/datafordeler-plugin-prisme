@@ -17,6 +17,7 @@ import dk.magenta.datafordeler.core.user.DafoUserDetails;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.core.util.LoggerHelper;
+import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
@@ -81,21 +82,26 @@ public class CvrRecordService {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
     }
 
+    public static final String PARAM_UPDATED_SINCE = "updatedSince";
+    public static final String PARAM_CVR_NUMBER = "cvrNumber";
+    public static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
+
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
             throws DataFordelerException, JsonProcessingException {
 
+        boolean returnParticipantDetails = "1".equals(request.getParameter(PARAM_RETURN_PARTICIPANT_DETAILS));
+
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
         LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
         loggerHelper.info(
-                "Incoming REST request for PrismeCvrService with cvrNummer " + cvrNummer
+                "Incoming REST request for PrismeCvrService with cvrNummer " + cvrNummer + " and " +
+                        PARAM_RETURN_PARTICIPANT_DETAILS + " = " + returnParticipantDetails
         );
-        this.checkAndLogAccess(loggerHelper);
+        this.checkAndLogAccess(loggerHelper, returnParticipantDetails);
 
         HashSet<String> cvrNumbers = new HashSet<>();
         cvrNumbers.add(cvrNummer);
-
-        boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
         Session session = sessionManager.getSessionFactory().openSession();
         LookupService service = new LookupService(session);
@@ -130,12 +136,9 @@ public class CvrRecordService {
         return QueryManager.getAllEntities(session, query, CompanyRecord.class);
     }
 
-    protected static final String PARAM_UPDATED_SINCE = "updatedSince";
-    protected static final String PARAM_CVR_NUMBER = "cvrNumber";
     protected static final byte[] START_OBJECT = "{".getBytes();
     protected static final byte[] END_OBJECT = "}".getBytes();
     protected static final byte[] OBJECT_SEPARATOR = ",\n".getBytes();
-    protected static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
 
     @RequestMapping(method = RequestMethod.POST, path = "/", produces = {MediaType.APPLICATION_JSON_VALUE})
     public StreamingResponseBody getBulk(HttpServletRequest request)
@@ -155,15 +158,17 @@ public class CvrRecordService {
 
         final List<String> cvrNumbers = (requestObject.has(PARAM_CVR_NUMBER)) ? this.getCvrNumber(requestObject.get(PARAM_CVR_NUMBER)) : null;
 
+        boolean returnParticipantDetails = "1".equals(request.getParameter(PARAM_RETURN_PARTICIPANT_DETAILS));
 
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
         LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
         loggerHelper.info(
                 "Incoming REST request for PrismeCprService with " +
-                        PARAM_UPDATED_SINCE + " = " + updatedSince + " and " +
-                        PARAM_CVR_NUMBER + " = " + (cvrNumbers != null && cvrNumbers.size() > 10 ? (cvrNumbers.size() + " cpr numbers") : cvrNumbers)
+                        PARAM_UPDATED_SINCE + " = " + updatedSince + ", " +
+                        PARAM_CVR_NUMBER + " = " + (cvrNumbers != null && cvrNumbers.size() > 10 ? (cvrNumbers.size() + " cpr numbers") : cvrNumbers) + " and " +
+                        PARAM_RETURN_PARTICIPANT_DETAILS + " = " + returnParticipantDetails
         );
-        this.checkAndLogAccess(loggerHelper);
+        this.checkAndLogAccess(loggerHelper, returnParticipantDetails);
 
         HashSet<String> cvr = new HashSet<>();
 
@@ -178,7 +183,6 @@ public class CvrRecordService {
         if (cvr.isEmpty()) {
             throw new InvalidClientInputException("Please specify at least one CVR number");
         }
-        boolean returnParticipantDetails = "1".equals(request.getParameter("returnParticipantDetails"));
 
         CompanyRecordQuery query = new CompanyRecordQuery();
         query.setCvrNumre(cvrNumbers);
@@ -218,10 +222,12 @@ public class CvrRecordService {
         };
     }
 
-
-    protected void checkAndLogAccess(LoggerHelper loggerHelper) throws AccessDeniedException, AccessRequiredException {
+    protected void checkAndLogAccess(LoggerHelper loggerHelper, boolean includeCpr) throws AccessDeniedException, AccessRequiredException {
         try {
             loggerHelper.getUser().checkHasSystemRole(CvrRolesDefinition.READ_CVR_ROLE);
+            if (includeCpr) {
+                loggerHelper.getUser().checkHasSystemRole(CprRolesDefinition.READ_CPR_ROLE);
+            }
         }
         catch (AccessDeniedException e) {
             loggerHelper.info("Access denied: " + e.getMessage());
@@ -348,12 +354,11 @@ public class CvrRecordService {
         Bitemporality now = new Bitemporality(current, current, current, current);
         for (CompanyParticipantRelationRecord participant : record.getParticipants()) {
             RelationParticipantRecord relationParticipantRecord = participant.getRelationParticipantRecord();
+            HashSet<MembershipDescription> membershipDescriptions = new HashSet<>();
             if (relationParticipantRecord != null && ("PERSON".equals(relationParticipantRecord.unitType) || "ANDEN_DELTAGER".equals(relationParticipantRecord.unitType))) {
                 boolean hasEligibleParticipant = false;
-
                 ObjectNode participantOutput = objectMapper.createObjectNode();
                 ArrayNode organizationsOutput = objectMapper.createArrayNode();
-
                 for (OrganizationRecord organization : participant.getOrganizations()) {
                     ArrayNode memberNodes = objectMapper.createArrayNode();
                     boolean found = false;
@@ -366,6 +371,11 @@ public class CvrRecordService {
                                     orgMemberNode.put("funktion", memberAttributeValue.getValue());
                                     memberNodes.add(orgMemberNode);
                                     found = true;
+                                    for (BaseNameRecord organizationName : organization.getNames()) {
+                                        membershipDescriptions.add(
+                                                new MembershipDescription(organization.getMainType(), organizationName.getName(), memberAttributeValue.getValue())
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -398,6 +408,13 @@ public class CvrRecordService {
                     } catch (Exception e) {
                         log.info(e.getMessage());
                     }
+                    boolean ownerMatch = false;
+                    for (MembershipDescription d : membershipDescriptions) {
+                        if (d.isOwner()) {
+                            ownerMatch = true;
+                        }
+                    }
+                    participantOutput.put("ownerMatch", ownerMatch);
                     participantOutput.set("organisationer", organizationsOutput);
                     participantsOutput.add(participantOutput);
                 }
