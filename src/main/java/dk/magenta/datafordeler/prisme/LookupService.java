@@ -44,6 +44,10 @@ public class LookupService {
         this.session = session;
     }
 
+    public Session getSession() {
+        return this.session;
+    }
+
     private DoubleHashMap<Integer, Integer, Lookup> cache = new DoubleHashMap<>();
 
 

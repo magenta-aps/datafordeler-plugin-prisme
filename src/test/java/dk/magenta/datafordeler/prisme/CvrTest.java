@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
+import dk.magenta.datafordeler.core.Pull;
 import dk.magenta.datafordeler.core.database.Entity;
 import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.database.Registration;
@@ -13,10 +14,14 @@ import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.InputStreamReader;
+import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntityManager;
+import dk.magenta.datafordeler.ger.GerPlugin;
+import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
+import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
@@ -77,6 +82,12 @@ public class CvrTest {
     @Autowired
     private CvrPlugin cvrPlugin;
 
+    @Autowired
+    private GerPlugin gerPlugin;
+
+    @Autowired
+    private CvrRecordService cvrRecordService;
+
     HashSet<Entity> createdEntities = new HashSet<>();
 
 
@@ -92,6 +103,34 @@ public class CvrTest {
             ByteArrayInputStream bais = new ByteArrayInputStream(source.getBytes("UTF-8"));
             companyEntityManager.parseData(bais, importMetadata);
             bais.close();
+        }
+    }
+
+    private void loadGerCompany() throws IOException, DataFordelerException {
+        InputStream testData = CvrTest.class.getResourceAsStream("/GER.test.xlsx");
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            dk.magenta.datafordeler.ger.data.company.CompanyEntityManager companyEntityManager = (dk.magenta.datafordeler.ger.data.company.CompanyEntityManager) gerPlugin.getRegisterManager().getEntityManager(CompanyEntity.schema);
+            ImportMetadata importMetadata = new ImportMetadata();
+            importMetadata.setSession(session);
+            companyEntityManager.parseData(testData, importMetadata);
+        } finally {
+            session.close();
+            testData.close();
+        }
+    }
+
+    private void loadGerParticipant() throws IOException, DataFordelerException {
+        InputStream testData = CvrTest.class.getResourceAsStream("/GER.test.xlsx");
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntityManager responsibleEntityManager = (dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntityManager) gerPlugin.getRegisterManager().getEntityManager(ResponsibleEntity.schema);
+            ImportMetadata importMetadata = new ImportMetadata();
+            importMetadata.setSession(session);
+            responsibleEntityManager.parseData(testData, importMetadata);
+        } finally {
+            session.close();
+            testData.close();
         }
     }
 
@@ -225,6 +264,36 @@ public class CvrTest {
         } finally {
             cleanup();
         }
+    }
+
+
+
+    @Test
+    public void testGerFallback() throws IOException, DataFordelerException {
+        this.cvrRecordService.setEnableDirectLookup(false);
+        this.cvrRecordService.setEnableGerLookup(true);
+        TestUserDetails testUserDetails = new TestUserDetails();
+        this.loadGerCompany();
+        this.loadGerParticipant();
+        testUserDetails.giveAccess(
+                cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CvrAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                )
+        );
+        testUserDetails.giveAccess(CvrRolesDefinition.READ_CVR_ROLE);
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+        ResponseEntity<String> response;
+        response = restTemplate.exchange(
+                "/prisme/cvr/1/" + 12345678 + "?returnParticipantDetails=1",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        System.out.println(response.getBody());
     }
 
 

@@ -27,7 +27,8 @@ import dk.magenta.datafordeler.cvr.data.unversioned.Address;
 import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 import dk.magenta.datafordeler.cvr.records.*;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
+import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
+import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +49,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/prisme/cvr/1")
@@ -86,6 +86,27 @@ public class CvrRecordService {
     public static final String PARAM_CVR_NUMBER = "cvrNumber";
     public static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
 
+    private boolean enableDirectLookup = true;
+
+    public boolean isEnableDirectLookup() {
+        return this.enableDirectLookup;
+    }
+
+    public void setEnableDirectLookup(boolean enableDirectLookup) {
+        this.enableDirectLookup = enableDirectLookup;
+    }
+
+
+    private boolean enableGerLookup = true;
+
+    public boolean isEnableGerLookup() {
+        return this.enableGerLookup;
+    }
+
+    public void setEnableGerLookup(boolean enableGerLookup) {
+        this.enableGerLookup = enableGerLookup;
+    }
+
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
             throws DataFordelerException, JsonProcessingException {
@@ -108,11 +129,15 @@ public class CvrRecordService {
         try {
             ObjectNode formattedRecord = null;
 
-            Collection<CompanyRecord> records = this.getCompanies(session, cvrNumbers, user);
-            if (!records.isEmpty()) {
-                CompanyRecord companyRecord = records.iterator().next();
-                formattedRecord = this.wrapRecord(companyRecord, service, returnParticipantDetails);
-            } else {
+            if (this.enableDirectLookup) {
+                Collection<CompanyRecord> records = this.getCompanies(session, cvrNumbers, user);
+                if (!records.isEmpty()) {
+                    CompanyRecord companyRecord = records.iterator().next();
+                    formattedRecord = this.wrapRecord(companyRecord, service, returnParticipantDetails);
+                }
+            }
+
+            if (this.enableGerLookup && formattedRecord == null) {
                 Collection<CompanyEntity> companyEntities = gerCompanyLookup.lookup(session, cvrNumbers);
                 if (!companyEntities.isEmpty()) {
                     CompanyEntity companyEntity = companyEntities.iterator().next();
@@ -253,6 +278,7 @@ public class CvrRecordService {
     protected ObjectNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
+        root.put("source", "CVR");
         root.put("cvrNummer", record.getCvrNumber());
 
         SecNameRecord nameRecord = this.getLastUpdated(record.getNames());
@@ -458,6 +484,8 @@ public class CvrRecordService {
     protected ObjectNode wrapGerCompany(CompanyEntity entity, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
+        root.put("source", "GER");
+
         root.put("cvrNummer", entity.getGerNr());
         root.put("navn", entity.getName());
         root.put("forretningsområde", entity.getBusinessText());
@@ -485,8 +513,9 @@ public class CvrRecordService {
 
             String address = entity.getAddress1();
             if (address == null || address.isEmpty()) {
-                if (!entity.getAddress2().contains("Postboks")) {
-                    address = entity.getAddress2();
+                String address2 = entity.getAddress2();
+                if (address2 != null && !address2.isEmpty() && !address2.contains("Postboks")) {
+                    address = address2;
                 }
             }
             root.put("adresse", address);
@@ -545,9 +574,25 @@ public class CvrRecordService {
             root.put("telefax", faxNumber);
         }
 
-        /*if (returnParticipantDetails) {
-            root.set("deltagere", this.getParticipants(entity));
-        }*/
+        if (returnParticipantDetails) {
+            ResponsibleQuery responsibleQuery = new ResponsibleQuery();
+            responsibleQuery.setGerNr(entity.getGerNr());
+            List<ResponsibleEntity> responsibleEntities = QueryManager.getAllEntities(lookupService.getSession(), responsibleQuery, ResponsibleEntity.class);
+            if (!responsibleEntities.isEmpty()) {
+                ArrayNode participantsNode = objectMapper.createArrayNode();
+                for (ResponsibleEntity responsibleEntity : responsibleEntities) {
+                    ObjectNode responsibleNode = objectMapper.createObjectNode();
+                    if (responsibleEntity.getCprNumber() != null) {
+                        responsibleNode.put("deltagerPnr", responsibleEntity.getCprNumberString());
+                    }
+                    if (responsibleEntity.getCvrNumber() != null) {
+                        responsibleNode.put("deltagerCvrNr", responsibleEntity.getCvrNumber().toString());
+                    }
+                    participantsNode.add(responsibleNode);
+                }
+                root.set("deltagere", participantsNode);
+            }
+        }
 
         return root;
     }
