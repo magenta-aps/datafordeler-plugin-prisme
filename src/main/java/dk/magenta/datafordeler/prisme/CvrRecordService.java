@@ -487,7 +487,13 @@ public class CvrRecordService {
         root.put("source", "GER");
 
         root.put("cvrNummer", entity.getGerNr());
-        root.put("navn", entity.getName());
+
+
+        root.put(
+                "navn",
+                (entity.getEndDate() != null ? "(historisk) ":"") +
+                entity.getName()
+        );
         root.put("forretningsområde", entity.getBusinessText());
 
         root.put("statuskode", entity.getStatusGuid().toString());
