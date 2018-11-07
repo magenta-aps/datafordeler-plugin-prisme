@@ -29,6 +29,9 @@ import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityRegistration;
 import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
 import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntityManager;
 import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityRegistration;
+import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
+import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntityManager;
+import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
@@ -185,6 +188,18 @@ public class CvrTest {
         }
     }
 
+    private void loadPostalcode(Session session) throws DataFordelerException, IOException {
+        InputStream testData = CvrTest.class.getResourceAsStream("/postalcode.json");
+        PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
+        List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
+        testData.close();
+        for (Registration registration : regs) {
+            PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
+            QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
+            createdEntities.add(postalCodeRegistration.getEntity());
+        }
+    }
+
     private void loadGladdrregData() throws IOException, DataFordelerException {
         Session session = sessionManager.getSessionFactory().openSession();
         try {
@@ -192,6 +207,7 @@ public class CvrTest {
             loadLocality(session);
             loadRoad(session);
             loadMunicipality(session);
+            loadPostalcode(session);
             transaction.commit();
         } finally {
             session.close();
@@ -275,6 +291,7 @@ public class CvrTest {
         TestUserDetails testUserDetails = new TestUserDetails();
         this.loadGerCompany();
         this.loadGerParticipant();
+        this.loadGladdrregData();
         testUserDetails.giveAccess(
                 cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                         CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER

@@ -483,12 +483,8 @@ public class CvrRecordService {
 
     protected ObjectNode wrapGerCompany(CompanyEntity entity, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
-
         root.put("source", "GER");
-
         root.put("cvrNummer", entity.getGerNr());
-
-
         root.put(
                 "navn",
                 (entity.getEndDate() != null ? "(historisk) ":"") +
@@ -496,7 +492,8 @@ public class CvrRecordService {
         );
         root.put("forretningsområde", entity.getBusinessText());
 
-        root.put("statuskode", entity.getStatusGuid().toString());
+        String statusCode = gerCompanyLookup.getStatus(entity.getStatusGuid());
+        root.put("statuskode", statusCode);
         root.put("statuskodedato", entity.getStatusChange() != null ? entity.getStatusChange().format(DateTimeFormatter.ISO_LOCAL_DATE) : null);
 
         Integer municipalityCode = entity.getMunicipalityCode();
@@ -531,14 +528,22 @@ public class CvrRecordService {
                 root.put("postboks", boxNr.trim());
             }
 
-            Matcher addressMatcher = postcodePattern.matcher(entity.getAddress3());
-            if (addressMatcher.find()) {
+            Matcher addressMatcher = null;
+            String postcodeField = entity.getAddress3();
+            if (postcodeField != null && !postcodeField.isEmpty()) {
+                addressMatcher = postcodePattern.matcher(postcodeField);
+            }
+            if (addressMatcher != null && addressMatcher.find()) {
                 root.put("postnummer", addressMatcher.group(1));
                 root.put("bynavn", addressMatcher.group(2));
             } else {
                 Integer postCode = entity.getPostNr();
                 if (postCode != null && postCode != 0) {
                     root.put("postnummer", postCode);
+                    String district = lookupService.getPostalCodeDistrict(postCode);
+                    if (district != null) {
+                        root.put("bynavn", district);
+                    }
                 }
             }
         } else {
@@ -553,10 +558,6 @@ public class CvrRecordService {
             }
             root.put("adresse", address.toString());
         }
-
-
-//
-//            root.put("bynavn", address.getPostdistrikt());
 
 
         String coName = entity.getCoName();

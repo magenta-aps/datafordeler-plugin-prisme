@@ -1,5 +1,6 @@
 package dk.magenta.datafordeler.prisme;
 
+import dk.magenta.datafordeler.core.database.DataItem;
 import dk.magenta.datafordeler.core.database.Identification;
 import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.util.DoubleHashMap;
@@ -18,6 +19,7 @@ import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityQuery;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeData;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEffect;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
+import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeQuery;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadData;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEffect;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
@@ -325,6 +327,23 @@ public class LookupService {
                     PostalCodeEntity postalCode = QueryManager.getEntity(this.session, postalCodeIdentification, PostalCodeEntity.class);
                     if (postalCode != null) {
                         return postalCode;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public String getPostalCodeDistrict(int code) {
+        PostalCodeQuery query = new PostalCodeQuery();
+        query.setCode(Integer.toString(code));
+        List<PostalCodeEntity> postalCodeEntities = QueryManager.getAllEntities(this.session, query, PostalCodeEntity.class);
+        if (postalCodeEntities != null && !postalCodeEntities.isEmpty()) {
+            PostalCodeEntity postalCodeEntity = postalCodeEntities.get(0);
+            if (postalCodeEntity != null) {
+                for (DataItem data : postalCodeEntity.getCurrent()) {
+                    if (data instanceof PostalCodeData) {
+                        return ((PostalCodeData) data).getName();
                     }
                 }
             }
