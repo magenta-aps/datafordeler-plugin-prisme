@@ -595,6 +595,9 @@ public class CvrRecordService {
                     if (responsibleEntity.getCvrNumber() != null) {
                         responsibleNode.put("deltagerCvrNr", responsibleEntity.getCvrNumber().toString());
                     }
+                    if (responsibleEntity.getName() != null) {
+                        responsibleNode.put("deltagerNavn", responsibleEntity.getName());
+                    }
                     participantsNode.add(responsibleNode);
                 }
                 root.set("deltagere", participantsNode);
