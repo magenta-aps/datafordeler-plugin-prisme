@@ -1,5 +1,6 @@
 package dk.magenta.datafordeler.prisme;
 
+import dk.magenta.datafordeler.core.database.DataItem;
 import dk.magenta.datafordeler.core.database.Identification;
 import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.util.DoubleHashMap;
@@ -18,6 +19,7 @@ import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityQuery;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeData;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEffect;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
+import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeQuery;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadData;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEffect;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
@@ -44,6 +46,10 @@ public class LookupService {
         this.session = session;
     }
 
+    public Session getSession() {
+        return this.session;
+    }
+
     private DoubleHashMap<Integer, Integer, Lookup> cache = new DoubleHashMap<>();
 
 
@@ -62,7 +68,7 @@ public class LookupService {
 
             if (municipalityCode >= 950) {
 
-                MunicipalityEntity municipalityEntity = this.getMunicipalityGR(session, municipalityCode);
+                MunicipalityEntity municipalityEntity = this.getMunicipalityGR(municipalityCode, COMPENSATE_2018_MUNICIPALITY_SPLIT);
                 if (municipalityEntity != null) {
                     for (MunicipalityEffect municipalityEffect : municipalityEntity.getRegistrationAt(now).getEffectsAt(now)) {
                         for (MunicipalityData municipalityData : municipalityEffect.getDataItems()) {
@@ -74,9 +80,9 @@ public class LookupService {
                         if (lookup.municipalityName != null) break;
                     }
 
-                    RoadEntity roadEntity = this.getRoadGR(session, municipalityEntity, roadCode);
+                    RoadEntity roadEntity = this.getRoadGR(municipalityEntity, roadCode);
                     if (roadEntity == null) {
-                        this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
+                        this.populateRoadDK(lookup, municipalityCode, roadCode, houseNumber);
                     } else {
                         for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
                             for (RoadData roadData : roadEffect.getDataItems()) {
@@ -88,7 +94,7 @@ public class LookupService {
                             if (lookup.roadName != null) break;
                         }
 
-                        LocalityEntity localityEntity = this.getLocalityGR(session, roadEntity);
+                        LocalityEntity localityEntity = this.getLocalityGR(roadEntity);
                         if (localityEntity != null) {
                             for (LocalityEffect localityEffect : localityEntity.getRegistrationAt(now).getEffectsAt(now)) {
                                 for (LocalityData localityData : localityEffect.getDataItems()) {
@@ -102,9 +108,9 @@ public class LookupService {
 
 
                             if (lookup.localityCode == 600) {
-                                this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
+                                this.populateRoadDK(lookup, municipalityCode, roadCode, houseNumber);
                             } else {
-                                PostalCodeEntity postalCodeEntity = this.getPostalCodeGR(session, localityEntity);
+                                PostalCodeEntity postalCodeEntity = this.getPostalCodeGR(localityEntity);
                                 if (postalCodeEntity != null) {
                                     for (PostalCodeEffect postalCodeEffect : postalCodeEntity.getRegistrationAt(now).getEffectsAt(now)) {
                                         for (PostalCodeData postalCodeData : postalCodeEffect.getDataItems()) {
@@ -123,22 +129,21 @@ public class LookupService {
                 }
             } else {
 
-                Municipality municipality = this.getMunicipalityDK(session, municipalityCode);
+                Municipality municipality = this.getMunicipalityDK(municipalityCode);
                 if (municipality != null) {
                     lookup.municipalityName = municipality.getName();
                     if (lookup.municipalityName != null) {
                         lookup.municipalityName = lookup.municipalityName.substring(0, 1).toUpperCase() + lookup.municipalityName.substring(1).toLowerCase();
                     }
                 }
-                this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
-
+                this.populateRoadDK(lookup, municipalityCode, roadCode, houseNumber);
             }
         }
         return lookup;
     }
 
-    private void populateRoadDK(Lookup lookup, Session session, int municipalityCode, int roadCode, String houseNumber) {
-        dk.magenta.datafordeler.cpr.data.road.RoadEntity roadEntity = this.getRoadDK(session, municipalityCode, roadCode);
+    private void populateRoadDK(Lookup lookup, int municipalityCode, int roadCode, String houseNumber) {
+        dk.magenta.datafordeler.cpr.data.road.RoadEntity roadEntity = this.getRoadDK(municipalityCode, roadCode);
         if (roadEntity != null) {
             lookup.roadName = this.getRoadNameDK(roadEntity);
             PostCode postCode = this.getRoadPostalCodeDK(roadEntity, houseNumber);
@@ -151,28 +156,28 @@ public class LookupService {
 
     private HashMap<Integer, Municipality> municipalityCacheDK = new HashMap<>();
 
-    private Municipality getMunicipalityDK(Session session, int municipalityCode) {
+    private Municipality getMunicipalityDK(int municipalityCode) {
         Municipality municipality;
         if (municipalityCacheDK.containsKey(municipalityCode)) {
             municipality = municipalityCacheDK.get(municipalityCode);
             if (municipality != null) {
-                session.merge(municipality);
+                this.session.merge(municipality);
             }
             return municipality;
         }
-        municipality = QueryManager.getItem(session, Municipality.class, Collections.singletonMap(Municipality.DB_FIELD_CODE, municipalityCode));
+        municipality = QueryManager.getItem(this.session, Municipality.class, Collections.singletonMap(Municipality.DB_FIELD_CODE, municipalityCode));
         if (municipality != null) {
             municipalityCacheDK.put(municipalityCode, municipality);
         }
         return municipality;
     }
 
-    private dk.magenta.datafordeler.cpr.data.road.RoadEntity getRoadDK(Session session, int municipalityCode, int roadCode) {
+    private dk.magenta.datafordeler.cpr.data.road.RoadEntity getRoadDK(int municipalityCode, int roadCode) {
         try {
             dk.magenta.datafordeler.cpr.data.road.RoadQuery roadQuery = new dk.magenta.datafordeler.cpr.data.road.RoadQuery();
             roadQuery.setVejkode(roadCode);
             roadQuery.addKommunekode(municipalityCode);
-            List<dk.magenta.datafordeler.cpr.data.road.RoadEntity> roadEntities = QueryManager.getAllEntities(session, roadQuery, dk.magenta.datafordeler.cpr.data.road.RoadEntity.class);
+            List<dk.magenta.datafordeler.cpr.data.road.RoadEntity> roadEntities = QueryManager.getAllEntities(this.session, roadQuery, dk.magenta.datafordeler.cpr.data.road.RoadEntity.class);
             return roadEntities.get(0);
         } catch (IndexOutOfBoundsException | NullPointerException e) {
         }
@@ -249,22 +254,22 @@ public class LookupService {
 
     private HashMap<Integer, MunicipalityEntity> municipalityCacheGR = new HashMap<>();
 
-    private MunicipalityEntity getMunicipalityGR(Session session, int municipalityCode) {
-        if (COMPENSATE_2018_MUNICIPALITY_SPLIT && (municipalityCode == 959 || municipalityCode == 960)) {
+    public MunicipalityEntity getMunicipalityGR(int municipalityCode, boolean compensateSplit) {
+        if (compensateSplit && (municipalityCode == 959 || municipalityCode == 960)) {
             municipalityCode = 958;
         }
         MunicipalityEntity municipalityEntity;
         if (municipalityCacheGR.containsKey(municipalityCode)) {
             municipalityEntity = municipalityCacheGR.get(municipalityCode);
             if (municipalityEntity != null) {
-                session.merge(municipalityEntity);
+                this.session.merge(municipalityEntity);
             }
             return municipalityEntity;
         }
         try {
             MunicipalityQuery municipalityQuery = new MunicipalityQuery();
             municipalityQuery.setCode(Integer.toString(municipalityCode));
-            List<MunicipalityEntity> municipalityEntities = QueryManager.getAllEntities(session, municipalityQuery, MunicipalityEntity.class);
+            List<MunicipalityEntity> municipalityEntities = QueryManager.getAllEntities(this.session, municipalityQuery, MunicipalityEntity.class);
             municipalityEntity = municipalityEntities.get(0);
             this.municipalityCacheGR.put(municipalityCode, municipalityEntity);
             return municipalityEntity;
@@ -274,25 +279,25 @@ public class LookupService {
         return null;
     }
 
-    private RoadEntity getRoadGR(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
+    private RoadEntity getRoadGR( MunicipalityEntity municipalityEntity, int roadCode) {
         try {
             RoadQuery roadQuery = new RoadQuery();
             roadQuery.setCode(Integer.toString(roadCode));
             roadQuery.setMunicipalityIdentifier(municipalityEntity.getUUID().toString());
-            List<RoadEntity> roadEntities = QueryManager.getAllEntities(session, roadQuery, RoadEntity.class);
+            List<RoadEntity> roadEntities = QueryManager.getAllEntities(this.session, roadQuery, RoadEntity.class);
             return roadEntities.get(0);
         } catch (IndexOutOfBoundsException | NullPointerException e) {
         }
         return null;
     }
 
-    private LocalityEntity getLocalityGR(Session session, RoadEntity roadEntity) {
+    private LocalityEntity getLocalityGR(RoadEntity roadEntity) {
         OffsetDateTime now = OffsetDateTime.now();
         for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
             for (RoadData roadData : roadEffect.getDataItems()) {
                 Identification locationIdentification = roadData.getLocation();
                 if (locationIdentification != null) {
-                    LocalityEntity locality = QueryManager.getEntity(session, locationIdentification, LocalityEntity.class);
+                    LocalityEntity locality = QueryManager.getEntity(this.session, locationIdentification, LocalityEntity.class);
                     if (locality != null) {
                         return locality;
                     }
@@ -302,15 +307,32 @@ public class LookupService {
         return null;
     }
 
-    private PostalCodeEntity getPostalCodeGR(Session session, LocalityEntity localityEntity) {
+    private PostalCodeEntity getPostalCodeGR(LocalityEntity localityEntity) {
         OffsetDateTime now = OffsetDateTime.now();
         for (LocalityEffect localityEffect : localityEntity.getRegistrationAt(now).getEffectsAt(now)) {
             for (LocalityData localityData : localityEffect.getDataItems()) {
                 Identification postalCodeIdentification = localityData.getPostalCode();
                 if (postalCodeIdentification != null) {
-                    PostalCodeEntity postalCode = QueryManager.getEntity(session, postalCodeIdentification, PostalCodeEntity.class);
+                    PostalCodeEntity postalCode = QueryManager.getEntity(this.session, postalCodeIdentification, PostalCodeEntity.class);
                     if (postalCode != null) {
                         return postalCode;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public String getPostalCodeDistrict(int code) {
+        PostalCodeQuery query = new PostalCodeQuery();
+        query.setCode(Integer.toString(code));
+        List<PostalCodeEntity> postalCodeEntities = QueryManager.getAllEntities(this.session, query, PostalCodeEntity.class);
+        if (postalCodeEntities != null && !postalCodeEntities.isEmpty()) {
+            PostalCodeEntity postalCodeEntity = postalCodeEntities.get(0);
+            if (postalCodeEntity != null) {
+                for (DataItem data : postalCodeEntity.getCurrent()) {
+                    if (data instanceof PostalCodeData) {
+                        return ((PostalCodeData) data).getName();
                     }
                 }
             }
