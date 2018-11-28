@@ -70,8 +70,8 @@ public class CvrService {
 
     @PostConstruct
     public void init() {
-        this.monitorService.addAccessCheckPoint("/prisme/cpr/0/1234");
-        this.monitorService.addAccessCheckPoint("POST", "/prisme/cpr/0/", "{}");
+        this.monitorService.addAccessCheckPoint("/prisme/cvr/0/1234");
+        this.monitorService.addAccessCheckPoint("POST", "/prisme/cvr/0/", "{}");
     }
 
     @RequestMapping(method = RequestMethod.GET, path="/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
