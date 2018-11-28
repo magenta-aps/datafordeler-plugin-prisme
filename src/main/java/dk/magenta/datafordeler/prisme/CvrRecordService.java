@@ -63,7 +63,7 @@ public class CvrRecordService {
     private CvrPlugin cvrPlugin;
 
     @Autowired
-    private MonitorService monitorService;
+    protected MonitorService monitorService;
 
     @Autowired
     private DirectLookup directLookup;
@@ -73,6 +73,7 @@ public class CvrRecordService {
     @PostConstruct
     public void init() {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
+        this.monitorService.addAccessCheckPoint("POST", "/prisme/cvr/1/1234", "{}");
     }
 
     public static final String PARAM_UPDATED_SINCE = "updatedSince";

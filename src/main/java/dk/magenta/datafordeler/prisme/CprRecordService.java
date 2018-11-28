@@ -62,7 +62,7 @@ public class CprRecordService {
     private CprPlugin cprPlugin;
 
     @Autowired
-    private MonitorService monitorService;
+    protected MonitorService monitorService;
 
     private Logger log = LoggerFactory.getLogger(CprRecordService.class);
 
@@ -72,6 +72,7 @@ public class CprRecordService {
     @PostConstruct
     public void init() {
         this.monitorService.addAccessCheckPoint("/prisme/cpr/2/1234");
+        this.monitorService.addAccessCheckPoint("POST", "/prisme/cpr/2/1234", "{}");
     }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
