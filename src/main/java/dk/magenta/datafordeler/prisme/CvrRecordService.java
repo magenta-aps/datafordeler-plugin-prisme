@@ -80,7 +80,7 @@ public class CvrRecordService {
     @PostConstruct
     public void init() {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
-        this.monitorService.addAccessCheckPoint("POST", "/prisme/cvr/1/1234", "{}");
+        this.monitorService.addAccessCheckPoint("POST", "/prisme/cvr/1/", "{}");
     }
 
     public static final String PARAM_UPDATED_SINCE = "updatedSince";
