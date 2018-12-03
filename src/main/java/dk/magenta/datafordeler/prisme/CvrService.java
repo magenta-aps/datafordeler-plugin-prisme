@@ -59,7 +59,7 @@ public class CvrService {
     @Autowired
     private CvrPlugin cvrPlugin;
 
-    private Logger log = LoggerFactory.getLogger(CvrService.class);
+    private Logger log = LoggerFactory.getLogger(CvrService.class.getCanonicalName());
 
     private CompanyOutputWrapperPrisme companyOutputWrapper = new CompanyOutputWrapperPrisme();
 

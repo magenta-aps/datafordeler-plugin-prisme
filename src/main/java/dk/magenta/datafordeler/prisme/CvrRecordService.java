@@ -68,7 +68,7 @@ public class CvrRecordService {
     @Autowired
     private DirectLookup directLookup;
 
-    private Logger log = LoggerFactory.getLogger(CvrRecordService.class);
+    private Logger log = LoggerFactory.getLogger(CvrRecordService.class.getCanonicalName());
 
     @PostConstruct
     public void init() {

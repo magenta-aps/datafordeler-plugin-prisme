@@ -64,7 +64,7 @@ public class CprRecordService {
     @Autowired
     private MonitorService monitorService;
 
-    private Logger log = LoggerFactory.getLogger(CprRecordService.class);
+    private Logger log = LoggerFactory.getLogger(CprRecordService.class.getCanonicalName());
 
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;
