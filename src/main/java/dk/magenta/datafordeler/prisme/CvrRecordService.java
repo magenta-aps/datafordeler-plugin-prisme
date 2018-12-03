@@ -26,9 +26,9 @@ import dk.magenta.datafordeler.cvr.data.company.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.data.unversioned.Address;
 import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 import dk.magenta.datafordeler.cvr.records.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -68,7 +68,8 @@ public class CvrRecordService {
     @Autowired
     private DirectLookup directLookup;
 
-    private Logger log = LoggerFactory.getLogger(CvrRecordService.class.getCanonicalName());
+    private Logger log = LogManager.getLogger(CvrRecordService.class.getCanonicalName());
+
 
     @PostConstruct
     public void init() {
