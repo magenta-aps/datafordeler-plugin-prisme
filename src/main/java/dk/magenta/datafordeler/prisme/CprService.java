@@ -21,9 +21,9 @@ import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonQuery;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -64,7 +64,7 @@ public class CprService {
     @Autowired
     protected MonitorService monitorService;
 
-    private Logger log = LoggerFactory.getLogger(CprService.class.getCanonicalName());
+    private Logger log = LogManager.getLogger(CprService.class.getCanonicalName());
 
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;

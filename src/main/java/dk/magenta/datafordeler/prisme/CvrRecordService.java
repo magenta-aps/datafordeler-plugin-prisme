@@ -29,9 +29,9 @@ import dk.magenta.datafordeler.cvr.records.*;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -75,7 +75,8 @@ public class CvrRecordService {
     @Autowired
     private GerCompanyLookup gerCompanyLookup;
 
-    private Logger log = LoggerFactory.getLogger(CvrRecordService.class.getCanonicalName());
+    private Logger log = LogManager.getLogger(CvrRecordService.class.getCanonicalName());
+
 
     @PostConstruct
     public void init() {
