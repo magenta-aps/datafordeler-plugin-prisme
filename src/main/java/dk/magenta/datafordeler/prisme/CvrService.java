@@ -64,7 +64,7 @@ public class CvrService {
     @Autowired
     protected MonitorService monitorService;
 
-    private Logger log = LoggerFactory.getLogger(CvrService.class);
+    private Logger log = LoggerFactory.getLogger(CvrService.class.getCanonicalName());
 
     private CompanyOutputWrapperPrisme companyOutputWrapper = new CompanyOutputWrapperPrisme();
 
