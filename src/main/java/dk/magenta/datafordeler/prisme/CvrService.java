@@ -20,9 +20,9 @@ import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.data.company.CompanyEntity;
 import dk.magenta.datafordeler.cvr.data.company.CompanyQuery;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,7 +59,7 @@ public class CvrService {
     @Autowired
     private CvrPlugin cvrPlugin;
 
-    private Logger log = LoggerFactory.getLogger(CvrService.class);
+    private Logger log = LogManager.getLogger(CvrService.class.getCanonicalName());
 
     private CompanyOutputWrapperPrisme companyOutputWrapper = new CompanyOutputWrapperPrisme();
 
