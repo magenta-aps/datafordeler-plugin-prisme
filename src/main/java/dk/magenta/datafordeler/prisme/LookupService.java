@@ -136,18 +136,8 @@ public class LookupService {
                         lookup.municipalityName = lookup.municipalityName.substring(0, 1).toUpperCase() + lookup.municipalityName.substring(1).toLowerCase();
                     }
                 }
+                this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
 
-                this.populateRoadDK(lookup, municipalityCode, roadCode, houseNumber);
-
-                dk.magenta.datafordeler.cpr.data.road.RoadEntity roadEntity = this.getRoadDK(municipalityCode, roadCode);
-                if (roadEntity != null) {
-                    lookup.roadName = this.getRoadNameDK(roadEntity);
-                    PostCode postCode = this.getRoadPostalCodeDK(roadEntity, houseNumber);
-                    if (postCode != null) {
-                        lookup.postalCode = postCode.getPostnummer();
-                        lookup.postalDistrict = postCode.getPostdistrikt();
-                    }
-                }
             }
         }
         return lookup;
@@ -249,6 +239,15 @@ public class LookupService {
                                     if (postcode.getPostCode() != null) {
                                         return postcode.getPostCode();
                                     }
+                                }
+                            }
+                        }
+                    } else {
+                        List<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
+                        if (postcodeData != null && !postcodeData.isEmpty()) {
+                            for (RoadPostcodeData postcode : postcodeData) {
+                                if (postcode.getPostCode() != null) {
+                                    return postcode.getPostCode();
                                 }
                             }
                         }
