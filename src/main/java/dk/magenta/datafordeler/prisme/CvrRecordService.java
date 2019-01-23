@@ -28,6 +28,9 @@ import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
 import dk.magenta.datafordeler.cvr.records.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
+import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
+import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
 import org.hibernate.Session;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -44,6 +47,7 @@ import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RestController
@@ -70,6 +74,9 @@ public class CvrRecordService {
 
     private Logger log = LogManager.getLogger(CvrRecordService.class.getCanonicalName());
 
+    @Autowired
+    private GerCompanyLookup gerCompanyLookup;
+
 
     @PostConstruct
     public void init() {
@@ -79,6 +86,27 @@ public class CvrRecordService {
     public static final String PARAM_UPDATED_SINCE = "updatedSince";
     public static final String PARAM_CVR_NUMBER = "cvrNumber";
     public static final String PARAM_RETURN_PARTICIPANT_DETAILS = "returnParticipantDetails";
+
+    private boolean enableDirectLookup = true;
+
+    public boolean isEnableDirectLookup() {
+        return this.enableDirectLookup;
+    }
+
+    public void setEnableDirectLookup(boolean enableDirectLookup) {
+        this.enableDirectLookup = enableDirectLookup;
+    }
+
+
+    private boolean enableGerLookup = true;
+
+    public boolean isEnableGerLookup() {
+        return this.enableGerLookup;
+    }
+
+    public void setEnableGerLookup(boolean enableGerLookup) {
+        this.enableGerLookup = enableGerLookup;
+    }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cvrNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
     public String getSingle(@PathVariable("cvrNummer") String cvrNummer, HttpServletRequest request)
@@ -98,14 +126,28 @@ public class CvrRecordService {
         cvrNumbers.add(cvrNummer);
 
         Session session = sessionManager.getSessionFactory().openSession();
+        LookupService service = new LookupService(session);
         try {
-            Collection<CompanyRecord> records = this.getCompanies(session, cvrNumbers, user);
-            if (!records.isEmpty()) {
-                LookupService service = new LookupService(session);
-                CompanyRecord companyRecord = records.iterator().next();
-                return objectMapper.writeValueAsString(
-                        this.wrapRecord(companyRecord, service, returnParticipantDetails)
-                );
+            ObjectNode formattedRecord = null;
+
+            if (this.enableDirectLookup) {
+                Collection<CompanyRecord> records = this.getCompanies(session, cvrNumbers, user);
+                if (!records.isEmpty()) {
+                    CompanyRecord companyRecord = records.iterator().next();
+                    formattedRecord = this.wrapRecord(companyRecord, service, returnParticipantDetails);
+                }
+            }
+
+            if (this.enableGerLookup && formattedRecord == null) {
+                Collection<CompanyEntity> companyEntities = gerCompanyLookup.lookup(session, cvrNumbers);
+                if (!companyEntities.isEmpty()) {
+                    CompanyEntity companyEntity = companyEntities.iterator().next();
+                    formattedRecord = this.wrapGerCompany(companyEntity, service, returnParticipantDetails);
+                }
+            }
+
+            if (formattedRecord != null) {
+                return objectMapper.writeValueAsString(formattedRecord);
             }
         } finally {
             session.close();
@@ -234,9 +276,10 @@ public class CvrRecordService {
         return cvrNumbers;
     }
 
-    protected JsonNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
+    protected ObjectNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
+        root.put("source", "CVR");
         root.put("cvrNummer", record.getCvrNumber());
 
         SecNameRecord nameRecord = this.getLastUpdated(record.getNames());
@@ -424,6 +467,145 @@ public class CvrRecordService {
             );
         }
         return list.isEmpty() ? null : list.get(list.size()-1);
+    }
+
+    Pattern postcodePattern = Pattern.compile("(\\d{4}) (.*)");
+
+    private static HashMap<Integer, String> municipalityMap = new HashMap<>();
+    static {
+        municipalityMap.put(955, "Kommune Kujalleq");
+        municipalityMap.put(956, "Kommuneqarfik Sermersooq");
+        municipalityMap.put(957, "Qeqqata Kommunia");
+        municipalityMap.put(958, "Qaasuitsup Kommunia");
+        municipalityMap.put(959, "Kommune Qeqertalik");
+        municipalityMap.put(960, "Avannaata Kommunia");
+    }
+
+
+    protected ObjectNode wrapGerCompany(CompanyEntity entity, LookupService lookupService, boolean returnParticipantDetails) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("source", "GER");
+        root.put("cvrNummer", entity.getGerNr());
+        root.put(
+                "navn",
+                (entity.getEndDate() != null ? "(historisk) ":"") +
+                entity.getName()
+        );
+        root.put("forretningsområde", entity.getBusinessText());
+
+        String statusCode = gerCompanyLookup.getStatus(entity.getStatusGuid());
+        root.put("statuskode", statusCode);
+        root.put("statuskodedato", entity.getStatusChange() != null ? entity.getStatusChange().format(DateTimeFormatter.ISO_LOCAL_DATE) : null);
+
+        Integer municipalityCode = entity.getMunicipalityCode();
+        root.put("myndighedskode", municipalityCode);
+        if (municipalityCode != null) {
+            if (municipalityMap.containsKey(municipalityCode)) {
+                root.put("kommune", municipalityMap.get(municipalityCode));
+            }
+        }
+
+        //root.put("vejkode", roadCode);
+        root.put("stedkode", entity.getLocalityCode());
+
+        Integer countryCode = entity.getCountryCode();
+        if (countryCode != null && countryCode != 0) {
+            root.put("landekode", countryCode);
+        }
+
+        if (countryCode == 8 || countryCode == 406) { // Denmark or Greenland
+
+            String address = entity.getAddress1();
+            if (address == null || address.isEmpty()) {
+                String address2 = entity.getAddress2();
+                if (address2 != null && !address2.isEmpty() && !address2.contains("Postboks")) {
+                    address = address2;
+                }
+            }
+            root.put("adresse", address);
+
+            String boxNr = entity.getBoxNr();
+            if (boxNr != null && !boxNr.trim().isEmpty()) {
+                root.put("postboks", boxNr.trim());
+            }
+
+            Matcher addressMatcher = null;
+            String postcodeField = entity.getAddress3();
+            if (postcodeField != null && !postcodeField.isEmpty()) {
+                addressMatcher = postcodePattern.matcher(postcodeField);
+            }
+            if (addressMatcher != null && addressMatcher.find()) {
+                root.put("postnummer", addressMatcher.group(1));
+                root.put("bynavn", addressMatcher.group(2));
+            } else {
+                Integer postCode = entity.getPostNr();
+                if (postCode != null && postCode != 0) {
+                    root.put("postnummer", postCode);
+                    String district = lookupService.getPostalCodeDistrict(postCode);
+                    if (district != null) {
+                        root.put("bynavn", district);
+                    }
+                }
+            }
+        } else {
+            StringJoiner address = new StringJoiner("\n");
+            String[] parts = new String[]{
+                entity.getAddress1(), entity.getAddress2(), entity.getAddress3()
+            };
+            for (String part : parts) {
+                if (part != null && !part.isEmpty()) {
+                    address.add(part);
+                }
+            }
+            root.put("adresse", address.toString());
+        }
+
+
+        String coName = entity.getCoName();
+        if (coName != null) {
+            root.put("co", coName);
+        }
+
+
+        String emailAddress = entity.getEmail();
+        if (emailAddress != null) {
+            root.put("email", emailAddress);
+        }
+
+        String phoneNumber = entity.getPhone();
+        if (phoneNumber != null) {
+            root.put("telefon", phoneNumber);
+        }
+
+        String faxNumber = entity.getFax();
+        if (faxNumber != null) {
+            root.put("telefax", faxNumber);
+        }
+
+        if (returnParticipantDetails) {
+            ResponsibleQuery responsibleQuery = new ResponsibleQuery();
+            responsibleQuery.setGerNr(entity.getGerNr());
+            List<ResponsibleEntity> responsibleEntities = QueryManager.getAllEntities(lookupService.getSession(), responsibleQuery, ResponsibleEntity.class);
+            if (!responsibleEntities.isEmpty()) {
+                ArrayNode participantsNode = objectMapper.createArrayNode();
+                for (ResponsibleEntity responsibleEntity : responsibleEntities) {
+                    ObjectNode responsibleNode = objectMapper.createObjectNode();
+                    if (responsibleEntity.getCprNumber() != null) {
+                        responsibleNode.put("deltagerPnr", responsibleEntity.getCprNumberString());
+                    }
+                    if (responsibleEntity.getCvrNumber() != null) {
+                        responsibleNode.put("deltagerCvrNr", responsibleEntity.getCvrNumber().toString());
+                    }
+                    if (responsibleEntity.getName() != null) {
+                        responsibleNode.put("deltagerNavn", responsibleEntity.getName());
+                    }
+                    participantsNode.add(responsibleNode);
+                }
+                root.set("deltagere", participantsNode);
+            }
+        }
+
+        return root;
     }
 
     protected void applyAreaRestrictionsToQuery(CompanyRecordQuery query, DafoUserDetails user) throws InvalidClientInputException {
