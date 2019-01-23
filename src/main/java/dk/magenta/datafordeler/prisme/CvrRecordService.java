@@ -18,14 +18,13 @@ import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.core.util.LoggerHelper;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
-import dk.magenta.datafordeler.cvr.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
-import dk.magenta.datafordeler.cvr.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.DirectLookup;
-import dk.magenta.datafordeler.cvr.data.company.CompanyRecordQuery;
-import dk.magenta.datafordeler.cvr.data.unversioned.Address;
-import dk.magenta.datafordeler.cvr.data.unversioned.PostCode;
+import dk.magenta.datafordeler.cvr.access.CvrAreaRestrictionDefinition;
+import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
+import dk.magenta.datafordeler.cvr.query.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.records.*;
+import dk.magenta.datafordeler.cvr.records.unversioned.PostCode;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
@@ -72,11 +71,10 @@ public class CvrRecordService {
     @Autowired
     private DirectLookup directLookup;
 
-    @Autowired
-    private GerCompanyLookup gerCompanyLookup;
-
     private Logger log = LogManager.getLogger(CvrRecordService.class.getCanonicalName());
 
+    @Autowired
+    private GerCompanyLookup gerCompanyLookup;
 
     @PostConstruct
     public void init() {
@@ -169,7 +167,7 @@ public class CvrRecordService {
 
     @RequestMapping(method = RequestMethod.POST, path = "/", produces = {MediaType.APPLICATION_JSON_VALUE})
     public StreamingResponseBody getBulk(HttpServletRequest request)
-            throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, IOException, HttpNotFoundException {
+            throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, IOException, HttpNotFoundException, InvalidCertificateException {
         JsonNode requestBody;
         try {
             requestBody = objectMapper.readTree(request.getInputStream());
@@ -313,7 +311,6 @@ public class CvrRecordService {
             addressRecord = this.getLastUpdated(record.getLocationAddress());
         }
         if (addressRecord != null) {
-            Address address = addressRecord.getAddress();
             AddressMunicipalityRecord municipality = addressRecord.getMunicipality();
             int municipalityCode = 0;
             if (municipality != null) {
@@ -322,7 +319,7 @@ public class CvrRecordService {
                 root.put("kommune", municipality.getMunicipalityName());
             }
 
-            int roadCode = address.getRoadCode();
+            int roadCode = addressRecord.getRoadCode();
             if (roadCode > 0) {
                 root.put("vejkode", roadCode);
                 if (municipalityCode > 0 && lookupService != null) {
@@ -333,24 +330,48 @@ public class CvrRecordService {
                 }
             }
 
-            String addressFormatted = address.getAddressFormatted();
-            if (addressFormatted != null && !addressFormatted.isEmpty()) {
-                root.put("adresse", addressFormatted);
+            StringBuilder addressFormatted = new StringBuilder();
+            if (addressRecord.getRoadName() != null) {
+                addressFormatted.append(addressRecord.getRoadName());
             }
-            if (address.getPostBox() > 0) {
-                root.put("postboks", address.getPostBox());
+            if (addressRecord.getHouseNumberFrom() != null) {
+                addressFormatted.append(" " + addressRecord.getHouseNumberFrom() + emptyIfNull(addressRecord.getLetterFrom()));
+                if (addressRecord.getHouseNumberTo() != null) {
+                    addressFormatted.append("-");
+                    if (addressRecord.getHouseNumberTo().equals(addressRecord.getHouseNumberFrom())) {
+                        addressFormatted.append(emptyIfNull(addressRecord.getLetterTo()));
+                    } else {
+                        addressFormatted.append(addressRecord.getHouseNumberTo() + emptyIfNull(addressRecord.getLetterTo()));
+                    }
+                }
+                if (addressRecord.getFloor() != null) {
+                    addressFormatted.append(", " + addressRecord.getFloor() + ".");
+                    if (addressRecord.getDoor() != null) {
+                        addressFormatted.append(" " + addressRecord.getDoor());
+                    }
+                }
             }
 
-            PostCode postCode = address.getPost();
-            if (address.getPostnummer() != 0) {
-                root.put("postnummer", address.getPostnummer());
-            }
-            if (address.getPostdistrikt() != null) {
-                root.put("bynavn", address.getPostdistrikt());
-            }
-            root.put("landekode", address.getCountryCode());
 
-            String coName = address.getCoName();
+            String addressFormattedString = addressFormatted.toString();
+
+            if (!addressFormattedString.isEmpty()) {
+                root.put("adresse", addressFormattedString);
+            }
+            if (addressRecord.getPostBox() != null && addressRecord.getPostBox() != "") {
+                root.put("postboks", addressRecord.getPostBox());
+            }
+
+            PostCode postCode = addressRecord.getPost();
+            if (addressRecord.getPostnummer() != 0) {
+                root.put("postnummer", addressRecord.getPostnummer());
+            }
+            if (addressRecord.getPostdistrikt() != null) {
+                root.put("bynavn", addressRecord.getPostdistrikt());
+            }
+            root.put("landekode", addressRecord.getCountryCode());
+
+            String coName = addressRecord.getCoName();
             if (coName != null) {
                 root.put("co", coName);
             }
@@ -618,6 +639,11 @@ public class CvrRecordService {
                 query.addKommunekodeRestriction(restriction.getValue());
             }
         }
+    }
+
+    private static String emptyIfNull(String text) {
+        if (text == null) return "";
+        return text;
     }
 
 }

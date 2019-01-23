@@ -41,9 +41,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         Bitemporality currentBitemp = new Bitemporality(now, now, now, now);
         OffsetDateTime latestUpdated = OffsetDateTime.MIN;
         for (T record : records) {
-            //if (record.getEffectTo() == null || (latestEffect != null && record.getEffectTo().isAfter(latestEffect))) {
-            //    latestEffect = record.getEffectTo();
-            if (record.getBitemporality().contains(currentBitemp) && !record.getDafoUpdated().isBefore(latestUpdated)) {
+            if (record.getBitemporality().contains(currentBitemp) && !record.getDafoUpdated().isBefore(latestUpdated) && !record.isUndone()/* && record.getCorrector() == null*/) {
                 OffsetDateTime registrationFrom = record.getRegistrationFrom();
                 if (registrationFrom == null) {
                     registrationFrom = OffsetDateTime.MIN;
@@ -159,6 +157,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
                     String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
                     String roadName = lookup.roadName;
+
                     if (roadName != null) {
                         root.put("adresse", this.getAddressFormatted(
                                 roadName,

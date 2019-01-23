@@ -8,7 +8,7 @@ import dk.magenta.datafordeler.cpr.data.road.data.RoadBaseData;
 import dk.magenta.datafordeler.cpr.data.road.data.RoadCoreData;
 import dk.magenta.datafordeler.cpr.data.road.data.RoadPostcodeData;
 import dk.magenta.datafordeler.cpr.data.unversioned.PostCode;
-import dk.magenta.datafordeler.cvr.data.unversioned.Municipality;
+import dk.magenta.datafordeler.cvr.records.unversioned.Municipality;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityData;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEffect;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
@@ -137,6 +137,7 @@ public class LookupService {
                     }
                 }
                 this.populateRoadDK(lookup, municipalityCode, roadCode, houseNumber);
+
             }
         }
         return lookup;
@@ -238,6 +239,15 @@ public class LookupService {
                                     if (postcode.getPostCode() != null) {
                                         return postcode.getPostCode();
                                     }
+                                }
+                            }
+                        }
+                    } else {
+                        Set<RoadPostcodeData> postcodeData = roadData.getPostcodeData();
+                        if (postcodeData != null && !postcodeData.isEmpty()) {
+                            for (RoadPostcodeData postcode : postcodeData) {
+                                if (postcode.getPostCode() != null) {
+                                    return postcode.getPostCode();
                                 }
                             }
                         }
