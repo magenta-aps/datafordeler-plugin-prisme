@@ -1,15 +1,11 @@
 package dk.magenta.datafordeler.prisme;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.Effect;
 import dk.magenta.datafordeler.core.fapi.BaseQuery;
 import dk.magenta.datafordeler.core.fapi.OutputWrapper;
 import dk.magenta.datafordeler.core.util.Bitemporality;
-import dk.magenta.datafordeler.cpr.data.person.PersonEffect;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
-import dk.magenta.datafordeler.cpr.data.person.PersonRegistration;
-import dk.magenta.datafordeler.cpr.data.person.data.*;
 import dk.magenta.datafordeler.cpr.records.person.CprBitemporalPersonRecord;
 import dk.magenta.datafordeler.cpr.records.person.data.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -204,203 +200,10 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
     @Override
     public Object wrapResult(PersonEntity input, BaseQuery query) {
-        // Root
-        NodeWrapper root = new NodeWrapper(objectMapper.createObjectNode());
-        root.put("cprNummer", input.getPersonnummer());
-
-        root.put("adressebeskyttelse", false);
-
-        OffsetDateTime highestStatusTime = OffsetDateTime.MIN;
-        OffsetDateTime highestCivilStatusTime = OffsetDateTime.MIN;
-        OffsetDateTime highestEmigrationTime = OffsetDateTime.MIN;
-        OffsetDateTime highestAddressTime = OffsetDateTime.MIN;
-        // Registrations
-        List<PersonRegistration> registrations = input.getRegistrations();
-        if (registrations != null && !registrations.isEmpty()) {
-            //    PersonRegistration personRegistration = registrations.get(registrations.size()-1);
-            for (PersonRegistration personRegistration : registrations) {
-                if (personRegistration.getRegistrationTo() == null) {
-                    for (PersonEffect virkning : personRegistration.getEffects()) {
-                        if (virkning.getEffectTo() == null) {
-                            OffsetDateTime effectFrom = virkning.getEffectFrom();
-                            ArrayList<PersonBaseData> dataItems = new ArrayList<>(virkning.getDataItems());
-                            dataItems.sort(Comparator.comparing(d -> d.getLastUpdated()));
-                            for (PersonBaseData personBaseData : dataItems) {
-                                this.wrapDataObject(root, personBaseData, input);
-                            }
-                            if (effectFrom != null) {
-                                if (effectFrom.isAfter(highestStatusTime)) {
-                                    for (PersonBaseData personBaseData : dataItems) {
-                                        if (personBaseData.getStatus() != null) {
-                                            highestStatusTime = effectFrom;
-                                        }
-                                    }
-                                }
-                                if (effectFrom.isAfter(highestCivilStatusTime)) {
-                                    for (PersonBaseData personBaseData : dataItems) {
-                                        if (personBaseData.getCivilStatus() != null) {
-                                            highestCivilStatusTime = effectFrom;
-                                        }
-                                    }
-                                }
-                                if (effectFrom.isAfter(highestEmigrationTime)) {
-                                    for (PersonBaseData personBaseData : dataItems) {
-                                        if (personBaseData.getMigration() != null) {
-                                            highestEmigrationTime = effectFrom;
-                                        }
-                                    }
-                                }
-                                if (effectFrom.isAfter(highestAddressTime)) {
-                                    for (PersonBaseData personBaseData : dataItems) {
-                                        if (personBaseData.getAddress() != null) {
-                                            highestAddressTime = effectFrom;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (highestStatusTime.isAfter(OffsetDateTime.MIN)) {
-            root.put("statuskodedato", highestStatusTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
-        }
-        if (highestCivilStatusTime.isAfter(OffsetDateTime.MIN)) {
-            root.put("civilstandsdato", highestCivilStatusTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
-        }
-        if (highestEmigrationTime.isAfter(OffsetDateTime.MIN)) {
-            root.put("udrejsedato", highestEmigrationTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
-        }
-        if (highestAddressTime.isAfter(OffsetDateTime.MIN)) {
-            root.put("tilflytningsdato", highestAddressTime.format(DateTimeFormatter.ISO_LOCAL_DATE));
-        }
-        return root.getNode();
+        return null;
     }
 
     Pattern postboxExtract = Pattern.compile("bo(?:x|(?:ks))\\s*(\\d+)");
-
-    protected void wrapDataObject(NodeWrapper output, PersonBaseData dataItem, PersonEntity entity) {
-
-        PersonNameData nameData = dataItem.getName();
-        if (nameData != null) {
-            StringJoiner nameJoiner = new StringJoiner(" ");
-            if (!nameData.getFirstNames().isEmpty()) {
-                nameJoiner.add(nameData.getFirstNames());
-            }
-            if (!nameData.getMiddleName().isEmpty()) {
-                nameJoiner.add(nameData.getMiddleName());
-            }
-            if (nameJoiner.length() > 0) {
-                output.put("fornavn", nameJoiner.toString());
-            }
-            if (nameData.getLastName() != null && !nameData.getLastName().isEmpty()) {
-                output.put("efternavn", nameData.getLastName());
-            }
-        }
-
-        PersonCivilStatusData personCivilStatusData = dataItem.getCivilStatus();
-        if (personCivilStatusData != null) {
-            output.put("civilstand", personCivilStatusData.getCivilStatus());
-            //output.put("civilstandsdato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
-            if (!personCivilStatusData.getSpouseCpr().isEmpty()) {
-                output.put("ægtefælleCprNummer", personCivilStatusData.getSpouseCpr());
-            }
-        }
-
-        Collection<PersonProtectionData> personProtectionData = dataItem.getProtection();
-        if (personProtectionData != null && !personProtectionData.isEmpty()) {
-            for (PersonProtectionData personProtectionDataItem : personProtectionData) {
-                int protectionType = personProtectionDataItem.getProtectionType();
-                if (protectionType == 1) { // Person- og adressebeskyttelse
-                    output.put("adressebeskyttelse", true);
-                }
-            }
-        }
-
-        PersonForeignAddressData personForeignAddressData = dataItem.getForeignAddress();
-        if (personForeignAddressData != null) {
-            output.put("udlandsadresse", personForeignAddressData.join("\n"));
-        }
-
-        PersonEmigrationData personEmigrationData = dataItem.getMigration();
-        if (personEmigrationData != null) {
-            output.put("landekode", countryCodeMap.get(personEmigrationData.getCountryCode()));
-            // output.put("udrejsedato", getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
-        }
-
-        PersonCoreData personCoreData = dataItem.getCoreData();
-        if (personCoreData != null) {
-            if (personCoreData.getGender() != null) {
-                output.put("køn", (personCoreData.getGender() == PersonCoreData.Koen.KVINDE) ? "K" : "M");
-            }
-            if (personCoreData.getCprNumber() != null && !personCoreData.getCprNumber().isEmpty() && !entity.getPersonnummer().equals(personCoreData.getCprNumber())) {
-                output.put("nytCprNummer", personCoreData.getCprNumber());
-            }
-        }
-
-        PersonStatusData personStatusData = dataItem.getStatus();
-        if (personStatusData != null) {
-            output.put("statuskode", personStatusData.getStatus());
-            // output.put("statuskodedato", this.getLastEffectTimeFormatted(dataItem.getEffects(), DateTimeFormatter.ISO_LOCAL_DATE));
-        }
-
-        PersonAddressData personAddressData = dataItem.getAddress();
-        if (personAddressData != null) {
-            int municipalityCode = personAddressData.getMunicipalityCode();
-            output.put("myndighedskode", municipalityCode);
-            int roadCode = personAddressData.getRoadCode();
-            String houseNumber = personAddressData.getHouseNumber();
-            if (roadCode > 0) {
-                output.put("vejkode", roadCode);
-
-                Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
-
-                output.put("kommune", lookup.municipalityName);
-
-                String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
-                String roadName = lookup.roadName;
-                if (roadName != null) {
-                    output.put("adresse", this.getAddressFormatted(
-                            roadName,
-                            personAddressData.getHouseNumber(),
-                            null,
-                            null, null,
-                            personAddressData.getFloor(),
-                            personAddressData.getDoor(),
-                            buildingNumber
-                    ));
-                } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
-                    output.put("adresse", formatBNumber(buildingNumber));
-                }
-
-                output.put("postnummer", lookup.postalCode);
-                output.put("bynavn", lookup.postalDistrict);
-                output.put("stedkode", lookup.localityCode);
-            }
-
-            if (municipalityCode > 0 && municipalityCode < 900) {
-                output.put("landekode", "DK");
-            } else if (municipalityCode > 900) {
-                output.put("landekode", "GL");
-            }
-        }
-
-        PersonAddressConameData personAddressConameData = dataItem.getConame();
-        if (personAddressConameData != null && !personAddressConameData.getConame().isEmpty()) {
-            String coname = personAddressConameData.getConame();
-            if (coname != null) {
-                coname = coname.toLowerCase();
-                Matcher m = postboxExtract.matcher(coname);
-                if (m.find()) {
-                    try {
-                        int postbox = Integer.parseInt(m.group(1), 10);
-                        output.put("postboks", postbox);
-                    } catch (NumberFormatException e) {}
-                }
-            }
-        }
-    }
 
     private String formatDate(OffsetDateTime dateTime) {
         if (dateTime != null) {
