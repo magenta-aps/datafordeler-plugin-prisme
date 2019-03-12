@@ -231,7 +231,7 @@ public class CprTest {
         }
     }
 
-    @Test // almost there
+    @Test
     public void test2PersonPrisme() throws Exception {
         loadPerson();
         loadGladdrregData();
@@ -258,7 +258,7 @@ public class CprTest {
     }
 
 
-    @Test // almost there
+    @Test
     public void test3PersonPrisme() throws Exception {
         loadPerson();
         loadGladdrregData();
