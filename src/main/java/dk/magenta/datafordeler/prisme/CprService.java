@@ -201,7 +201,7 @@ public class CprService {
                                 outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
                                 outputStream.write(
                                         objectMapper.writeValueAsString(
-                                                personOutputWrapper.wrapResult(personEntity, personQuery)
+                                                personOutputWrapper.wrapRecordResult(personEntity, personQuery)
                                         ).getBytes(Charset.forName("UTF-8"))
                                 );
                             } catch (IOException e) {
