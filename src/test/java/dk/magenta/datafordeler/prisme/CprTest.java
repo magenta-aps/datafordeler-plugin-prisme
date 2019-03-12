@@ -33,8 +33,10 @@ import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.junit.Assert;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.MethodSorters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -59,6 +61,7 @@ import static org.mockito.Mockito.when;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class CprTest {
 
     @Autowired
@@ -201,7 +204,7 @@ public class CprTest {
     }
 
     @Test // seems allright
-    public void testPersonRecordOutput() throws Exception {
+    public void test1PersonRecordOutput() throws Exception {
         loadPerson();
         loadGladdrregData();
 
@@ -229,7 +232,7 @@ public class CprTest {
     }
 
     @Test // almost there
-    public void testPersonPrisme() throws Exception {
+    public void test2PersonPrisme() throws Exception {
         loadPerson();
         loadGladdrregData();
 
@@ -247,10 +250,27 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
 
 
+
+
+        } finally {
+            cleanup();
+        }
+    }
+
+
+    @Test // almost there
+    public void test3PersonPrisme() throws Exception {
+        loadPerson();
+        loadGladdrregData();
+
+        try {
+            TestUserDetails testUserDetails = new TestUserDetails();
+
+            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+
             testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
             this.applyAccess(testUserDetails);
-
-            response = restTemplate.exchange(
+            ResponseEntity<String> response = restTemplate.exchange(
                     "/prisme/cpr/1/" + "0101001234",
                     HttpMethod.GET,
                     httpEntity,
@@ -278,32 +298,14 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
 
 
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            /*Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-            System.out.println(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(objectMapper.readTree(response.getBody())));*/
-
         } finally {
             cleanup();
         }
     }
 
+
     @Test
-    public void testPersonBulkPrisme() throws Exception {
+    public void test4PersonBulkPrisme() throws Exception {
 
         OffsetDateTime start = OffsetDateTime.now();
         loadManyPersons(5, 0);
@@ -401,8 +403,6 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
 
-
-
             body = objectMapper.createObjectNode();
             cprList = objectMapper.createArrayNode();
             cprList.add("0000000000");
@@ -410,39 +410,11 @@ public class CprTest {
             cprList.add("0000000002");
             cprList.add("0000000003");
             cprList.add("0000000004");
-            cprList.add("0000000005");
-            cprList.add("0000000006");
-            cprList.add("0000000007");
-            cprList.add("0000000008");
-            cprList.add("0000000009");
-            body.set("cprNumber", cprList);
-            body.put("updatedSince", afterLoad.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(0, objectMapper.readTree(response.getBody()).size());
-
-
-
-
-
-            body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000005");
-            cprList.add("0000000006");
-            cprList.add("0000000007");
-            cprList.add("0000000008");
-            cprList.add("0000000009");
+            cprList.add("0000000015");
+            cprList.add("0000000016");
+            cprList.add("0000000017");
+            cprList.add("0000000018");
+            cprList.add("0000000019");
             body.set("cprNumber", cprList);
             body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
