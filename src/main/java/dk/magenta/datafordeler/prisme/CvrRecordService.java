@@ -276,6 +276,7 @@ public class CvrRecordService {
         }
         return cvrNumbers;
     }
+	
 
     protected ObjectNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
