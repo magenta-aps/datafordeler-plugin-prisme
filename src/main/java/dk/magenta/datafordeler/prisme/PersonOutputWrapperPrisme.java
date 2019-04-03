@@ -124,6 +124,16 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             }
         }
 
+        ParentDataRecord fatherData = this.getLatest(input.getFather());
+        if (fatherData != null) {
+            root.put("far", fatherData.getCprNumber());
+        }
+
+        ParentDataRecord motherData = this.getLatest(input.getMother());
+        if (motherData != null) {
+            root.put("mor", motherData.getCprNumber());
+        }
+
         PersonStatusDataRecord personStatusData = this.getLatest(input.getStatus());
         if (personStatusData != null) {
             root.put("statuskode", personStatusData.getStatus());
@@ -338,6 +348,16 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             if (personCoreData.getCprNumber() != null && !personCoreData.getCprNumber().isEmpty() && !entity.getPersonnummer().equals(personCoreData.getCprNumber())) {
                 output.put("nytCprNummer", personCoreData.getCprNumber());
             }
+        }
+
+        dk.magenta.datafordeler.cpr.data.person.data.PersonParentData fatherData = dataItem.getFather();
+        if (fatherData != null) {
+            output.put("far", fatherData.getCprNumber());
+        }
+
+        dk.magenta.datafordeler.cpr.data.person.data.PersonParentData motherData = dataItem.getMother();
+        if (motherData != null) {
+            output.put("mor", motherData.getCprNumber());
         }
 
         PersonStatusData personStatusData = dataItem.getStatus();
