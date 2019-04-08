@@ -76,7 +76,6 @@ public class CvrRecordService {
     @Autowired
     private GerCompanyLookup gerCompanyLookup;
 
-
     @PostConstruct
     public void init() {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
