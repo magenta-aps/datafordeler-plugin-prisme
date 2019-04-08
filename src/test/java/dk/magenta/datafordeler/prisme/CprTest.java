@@ -297,6 +297,73 @@ public class CprTest {
             );
             Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
 
+            testUserDetails.giveAccess(
+                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                    ).getRestriction(
+                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                    )
+            );
+            this.applyAccess(testUserDetails);
+            response = restTemplate.exchange(
+                    "/prisme/cpr/1/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
+
+
+        } finally {
+            cleanup();
+        }
+    }
+
+
+    /**
+     * Test the service cpr/2
+     * Do not currently know why there is two services, but they should both be testet
+     * @throws Exception
+     */
+    @Test
+    public void test4PersonPrisme() throws Exception {
+        loadPerson();
+        loadGladdrregData();
+
+        try {
+            TestUserDetails testUserDetails = new TestUserDetails();
+
+            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+
+            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+            this.applyAccess(testUserDetails);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    "/prisme/cpr/2/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
+
+
+
+            testUserDetails.giveAccess(
+                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                    ).getRestriction(
+                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                    )
+            );
+            this.applyAccess(testUserDetails);
+            response = restTemplate.exchange(
+                    "/prisme/cpr/2/" + "0101001234",
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
 
         } finally {
             cleanup();
