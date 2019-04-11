@@ -164,10 +164,10 @@ public class CprService {
         }
 
         OffsetDateTime now = OffsetDateTime.now();
-        personQuery.setRegistrationFrom(now);
-        personQuery.setRegistrationTo(now);
-        personQuery.setEffectFrom(now);
-        personQuery.setEffectTo(now);
+        personQuery.setRegistrationFromBefore(now);
+        personQuery.setRegistrationToAfter(now);
+        personQuery.setEffectFromBefore(now);
+        personQuery.setEffectToAfter(now);
 
         return new StreamingResponseBody() {
 
