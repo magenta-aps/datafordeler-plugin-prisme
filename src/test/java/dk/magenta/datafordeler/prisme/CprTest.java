@@ -30,6 +30,7 @@ import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
+import org.hamcrest.CoreMatchers;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.junit.Assert;
@@ -314,6 +315,9 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
+
 
         } finally {
             cleanup();
@@ -347,7 +351,8 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
 
             testUserDetails.giveAccess(
                     cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
