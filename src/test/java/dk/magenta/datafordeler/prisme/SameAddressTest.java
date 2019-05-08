@@ -218,6 +218,7 @@ public class SameAddressTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"cprNumber\":\"0101001234\""));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]"));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":955"));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":1"));
