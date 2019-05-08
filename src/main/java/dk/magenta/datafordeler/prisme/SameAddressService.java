@@ -1,7 +1,6 @@
 package dk.magenta.datafordeler.prisme;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import dk.magenta.datafordeler.core.MonitorService;
@@ -70,14 +69,14 @@ public class SameAddressService {
         this.monitorService.addAccessCheckPoint("POST", "/prisme/sameaddress/1/", "{}");
     }
 
-    @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
-    public String getSingle(@PathVariable("cprNummer") String cprNummer, HttpServletRequest request)
+    @RequestMapping(method = RequestMethod.GET, path = "/{cprNumber}", produces = {MediaType.APPLICATION_JSON_VALUE})
+    public String getSingle(@PathVariable("cprNumber") String cprNummer, HttpServletRequest request)
             throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, JsonProcessingException, HttpNotFoundException, InvalidCertificateException {
 
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
         LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
         loggerHelper.info(
-                "Incoming REST request for PrismeCprService with cprNummer " + cprNummer
+                "Incoming REST request for PrismeCprService with cprNumber " + cprNummer
         );
         this.checkAndLogAccess(loggerHelper);
 
@@ -109,14 +108,16 @@ public class SameAddressService {
                 personSameAddressQuery.addDoor(address.getDoor());
                 personSameAddressQuery.addFloor(address.getFloor());
 
-                ArrayNode results = objectMapper.createArrayNode();
+                ArrayNode sameAddressCprs = objectMapper.createArrayNode();
 
-                List<PersonEntity> personEntities2 = QueryManager.getAllEntities(session, personSameAddressQuery, PersonEntity.class);
-                for(PersonEntity personentity : personEntities2) {
-                    results.add(personentity.getPersonnummer());
+                List<PersonEntity> personEntitiesOnSameAdd = QueryManager.getAllEntities(session, personSameAddressQuery, PersonEntity.class);
+                for(PersonEntity personentity : personEntitiesOnSameAdd) {
+                    sameAddressCprs.add(personentity.getPersonnummer());
                 }
 
                 OutputWrapper.NodeWrapper root = new OutputWrapper.NodeWrapper(objectMapper.createObjectNode());
+
+                root.put("cprNumber", cprNummer);
 
                 int municipalityCode = address.getMunicipalityCode();
                 root.put("municipalitycode", municipalityCode);
@@ -134,7 +135,7 @@ public class SameAddressService {
                     }
                 }
 
-                root.set("sameAddressCprs", results);
+                root.set("sameAddressCprs", sameAddressCprs);
                 return objectMapper.writeValueAsString(root.getNode());
             }
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
