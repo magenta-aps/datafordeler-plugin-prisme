@@ -107,7 +107,7 @@ public class CprService {
 
             if (!personEntities.isEmpty()) {
                 PersonEntity personEntity = personEntities.get(0);
-                return objectMapper.writeValueAsString(personOutputWrapper.wrapResult(personEntity, personQuery));
+                return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
             }
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
@@ -201,7 +201,7 @@ public class CprService {
                                 outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
                                 outputStream.write(
                                         objectMapper.writeValueAsString(
-                                                personOutputWrapper.wrapResult(personEntity, personQuery)
+                                                personOutputWrapper.wrapRecordResult(personEntity, personQuery)
                                         ).getBytes(Charset.forName("UTF-8"))
                                 );
                             } catch (IOException e) {
