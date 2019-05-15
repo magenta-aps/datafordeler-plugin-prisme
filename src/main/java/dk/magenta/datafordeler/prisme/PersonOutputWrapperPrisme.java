@@ -118,6 +118,16 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
             }
         }
 
+        ParentDataRecord fatherData = this.getLatest(input.getFather());
+        if (fatherData != null) {
+            root.put("far", fatherData.getCprNumber());
+        }
+
+        ParentDataRecord motherData = this.getLatest(input.getMother());
+        if (motherData != null) {
+            root.put("mor", motherData.getCprNumber());
+        }
+
         PersonStatusDataRecord personStatusData = this.getLatest(input.getStatus());
         if (personStatusData != null) {
             root.put("statuskode", personStatusData.getStatus());
