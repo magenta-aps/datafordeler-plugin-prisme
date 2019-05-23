@@ -159,6 +159,23 @@ public class CvrRecordCombinedService {
             ObjectNode formattedRecord = objectMapper.createObjectNode();
 
             if (!cvrNumbers.isEmpty()) {
+                Collection<CompanyRecord> companyEntities = collectiveLookup.getCompanies(session, cvrNumbers);
+                if (!companyEntities.isEmpty()) {
+                    Iterator<CompanyRecord> companyEntityIterator = companyEntities.iterator();
+                    while(companyEntityIterator.hasNext()) {
+                        CompanyRecord companyRecord = companyEntityIterator.next();
+                        String cvrNumber = Integer.toString(companyRecord.getCvrNumber());
+                        if(asList) {
+                            formattedRecord.set(cvrNumber, cvrWrapper.wrapRecord(companyRecord, service, returnParticipantDetails));
+                        } else {
+                            formattedRecord = cvrWrapper.wrapRecord(companyRecord, service, returnParticipantDetails);
+                        }
+                        cvrNumbers.remove(cvrNumber);
+                    }
+                }
+            }
+
+            if (!cvrNumbers.isEmpty()) {
                 Collection<CompanyEntity> companyEntities = gerCompanyLookup.lookup(session, cvrNumbers);
                 if (!companyEntities.isEmpty()) {
                     Iterator<CompanyEntity> companyEntityIterator = companyEntities.iterator();
@@ -170,22 +187,7 @@ public class CvrRecordCombinedService {
                         } else {
                             formattedRecord = cvrWrapper.wrapGerCompany(companyEntity, service, returnParticipantDetails);
                         }
-                        cvrNumbers.remove(gerNo);
-                    }
-                }
-            }
 
-            if (!cvrNumbers.isEmpty()) {
-                Collection<CompanyRecord> companyEntities = collectiveLookup.getCompanies(session, cvrNumbers);
-                if (!companyEntities.isEmpty()) {
-                    Iterator<CompanyRecord> companyEntityIterator = companyEntities.iterator();
-                    while(companyEntityIterator.hasNext()) {
-                        CompanyRecord companyRecord = companyEntityIterator.next();
-                        if(asList) {
-                            formattedRecord.set(Integer.toString(companyRecord.getCvrNumber()), cvrWrapper.wrapRecord(companyRecord, service, returnParticipantDetails));
-                        } else {
-                            formattedRecord = cvrWrapper.wrapRecord(companyRecord, service, returnParticipantDetails);
-                        }
                     }
                 }
             }
