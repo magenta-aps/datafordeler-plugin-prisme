@@ -35,6 +35,7 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
+import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -218,8 +219,8 @@ public class SameAddressTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"cprNumber\":\"0101001234\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]"));
+            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]}", response.getBody(), false);
+
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":955"));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":1"));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"housenumber\":\"5\""));
