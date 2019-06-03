@@ -359,7 +359,7 @@ public class CvrRecordService {
                 root.put("adresse", addressFormattedString);
             }
             if (addressRecord.getPostBox() != null && addressRecord.getPostBox() != "") {
-                root.put("postboks", addressRecord.getPostBox());
+                root.put("postboks", Integer.parseInt(addressRecord.getPostBox()));
             }
 
             PostCode postCode = addressRecord.getPost();
