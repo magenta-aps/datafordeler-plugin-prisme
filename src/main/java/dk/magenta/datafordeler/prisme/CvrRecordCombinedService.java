@@ -103,7 +103,7 @@ public class CvrRecordCombinedService {
         cvrNumbers.add(cvrNummer);
         ObjectNode formattedRecord = getJSONFromCvrList(cvrNumbers, returnParticipantDetails, false);
 
-        if (formattedRecord != null) {
+        if (formattedRecord != null && formattedRecord.size()>0) {
             return objectMapper.writeValueAsString(formattedRecord);
         } else {
             throw new HttpNotFoundException("No entity with CVR number " + cvrNummer + " was found");
@@ -158,7 +158,7 @@ public class CvrRecordCombinedService {
 
             ObjectNode formattedRecord = objectMapper.createObjectNode();
 
-            if (!cvrNumbers.isEmpty()) {
+            if (cvrNumbers!=null && !cvrNumbers.isEmpty()) {
                 Collection<CompanyRecord> companyEntities = collectiveLookup.getCompanies(session, cvrNumbers);
                 if (!companyEntities.isEmpty()) {
                     Iterator<CompanyRecord> companyEntityIterator = companyEntities.iterator();
@@ -175,7 +175,7 @@ public class CvrRecordCombinedService {
                 }
             }
 
-            if (!cvrNumbers.isEmpty()) {
+            if (cvrNumbers!=null && !cvrNumbers.isEmpty()) {
                 Collection<CompanyEntity> companyEntities = gerCompanyLookup.lookup(session, cvrNumbers);
                 if (!companyEntities.isEmpty()) {
                     Iterator<CompanyEntity> companyEntityIterator = companyEntities.iterator();

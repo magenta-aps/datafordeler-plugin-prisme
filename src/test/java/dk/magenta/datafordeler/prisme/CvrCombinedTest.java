@@ -289,6 +289,14 @@ public class CvrCombinedTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+
+            response = restTemplate.exchange(
+                    "/prisme/cvr/3/" + 1234,
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         } finally {
             cleanup();
         }
