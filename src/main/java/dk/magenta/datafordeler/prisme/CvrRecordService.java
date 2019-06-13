@@ -76,7 +76,6 @@ public class CvrRecordService {
     @Autowired
     private GerCompanyLookup gerCompanyLookup;
 
-
     @PostConstruct
     public void init() {
         this.monitorService.addAccessCheckPoint("/prisme/cvr/1/1234");
@@ -360,7 +359,7 @@ public class CvrRecordService {
                 root.put("adresse", addressFormattedString);
             }
             if (addressRecord.getPostBox() != null && addressRecord.getPostBox() != "") {
-                root.put("postboks", addressRecord.getPostBox());
+                root.put("postboks", Integer.parseInt(addressRecord.getPostBox()));
             }
 
             PostCode postCode = addressRecord.getPost();
@@ -511,7 +510,7 @@ public class CvrRecordService {
         root.put("cvrNummer", entity.getGerNr());
         root.put(
                 "navn",
-                (entity.getEndDate() != null ? "(historisk) ":"") +
+                (entity.getEndDate() != null ? "historisk ":"") +
                 entity.getName()
         );
         root.put("forretningsområde", entity.getBusinessText());

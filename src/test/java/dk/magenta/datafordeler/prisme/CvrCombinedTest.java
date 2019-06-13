@@ -1,5 +1,6 @@
 package dk.magenta.datafordeler.prisme;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -12,11 +13,14 @@ import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
 import dk.magenta.datafordeler.core.util.InputStreamReader;
-import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
-import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
-import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
-import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
+import dk.magenta.datafordeler.cvr.CvrPlugin;
+import dk.magenta.datafordeler.cvr.access.CvrAreaRestrictionDefinition;
+import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
+import dk.magenta.datafordeler.cvr.entitymanager.CompanyEntityManager;
+import dk.magenta.datafordeler.ger.GerPlugin;
+import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
+import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
@@ -30,14 +34,13 @@ import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
-import org.hamcrest.CoreMatchers;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.junit.Assert;
-import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -46,97 +49,120 @@ import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import javax.persistence.FlushModeType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
-import java.util.StringJoiner;
 
 import static org.mockito.Mockito.when;
 
-
+/**
+ * Test the service for combined lookup locally and remote.
+ * The unittest is not actually trying to lookup companys that is not stored locally.
+ * This is becrause we do not want the unittest to access outside webservices and use passwords etc.
+ * The unittest could be expanded with a mockup of the external cvr-server
+ */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class CprTest {
+public class CvrCombinedTest {
+
+    private Logger log = LogManager.getLogger(CvrCombinedTest.class.getCanonicalName());
 
     @Autowired
     private SessionManager sessionManager;
 
     @Autowired
-    private PersonEntityManager personEntityManager;
+    private CompanyEntityManager companyEntityManager;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private GladdrregPlugin gladdrregPlugin;
 
     @Autowired
-    private TestRestTemplate restTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    TestRestTemplate restTemplate;
 
     @SpyBean
     private DafoUserManager dafoUserManager;
 
     @Autowired
-    private CprPlugin cprPlugin;
+    private CvrPlugin cvrPlugin;
 
     @Autowired
-    private CprService cprService;
+    private GerPlugin gerPlugin;
 
     @Autowired
-    private PersonOutputWrapperPrisme personOutputWrapper;
+    private CvrRecordCombinedService combinedRecordService;
 
     HashSet<Entity> createdEntities = new HashSet<>();
 
-    public void loadPerson() throws Exception {
-        InputStream testData = CprTest.class.getResourceAsStream("/person.txt");
-        ImportMetadata importMetadata = new ImportMetadata();
-        Session session = sessionManager.getSessionFactory().openSession();
-        importMetadata.setSession(session);
-        Transaction transaction = session.beginTransaction();
-        importMetadata.setTransactionInProgress(true);
-        personEntityManager.parseData(testData, importMetadata);
-        transaction.commit();
-        session.close();
+
+    private void loadCompany() throws IOException, DataFordelerException {
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/company_in.json");
+        JsonNode root = objectMapper.readTree(testData);
         testData.close();
-    }
-
-    public void loadManyPersons(int count) throws Exception {
-        this.loadManyPersons(count, 0);
-    }
-
-    public void loadManyPersons(int count, int start) throws Exception {
+        JsonNode itemList = root.get("hits").get("hits");
+        Assert.assertTrue(itemList.isArray());
         ImportMetadata importMetadata = new ImportMetadata();
-        Session session = sessionManager.getSessionFactory().openSession();
-        importMetadata.setSession(session);
-        Transaction transaction = session.beginTransaction();
-        importMetadata.setTransactionInProgress(true);
-        String testData = InputStreamReader.readInputStream(CprTest.class.getResourceAsStream("/person.txt"));
-        String[] lines = testData.split("\n");
-        for (int i = start; i < count + start; i++) {
-            StringJoiner sb = new StringJoiner("\n");
-            String newCpr = String.format("%010d", i);
-            for (int j = 0; j < lines.length; j++) {
-                String line = lines[j];
-                line = line.substring(0, 3) + newCpr + line.substring(13);
-                sb.add(line);
-            }
-            ByteArrayInputStream bais = new ByteArrayInputStream(sb.toString().getBytes("UTF-8"));
-            personEntityManager.parseData(bais, importMetadata);
+        for (JsonNode item : itemList) {
+            String source = objectMapper.writeValueAsString(item.get("_source").get("Vrvirksomhed"));
+            ByteArrayInputStream bais = new ByteArrayInputStream(source.getBytes("UTF-8"));
+            companyEntityManager.parseData(bais, importMetadata);
             bais.close();
         }
-        transaction.commit();
-        session.close();
+    }
+
+    private void loadGerCompany() throws IOException, DataFordelerException {
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/GER.test.xlsx");
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            dk.magenta.datafordeler.ger.data.company.CompanyEntityManager companyEntityManager = (dk.magenta.datafordeler.ger.data.company.CompanyEntityManager) gerPlugin.getRegisterManager().getEntityManager(CompanyEntity.schema);
+            ImportMetadata importMetadata = new ImportMetadata();
+            importMetadata.setSession(session);
+            companyEntityManager.parseData(testData, importMetadata);
+        } finally {
+            session.close();
+            testData.close();
+        }
+    }
+
+    private void loadGerParticipant() throws IOException, DataFordelerException {
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/GER.test.xlsx");
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntityManager responsibleEntityManager = (dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntityManager) gerPlugin.getRegisterManager().getEntityManager(ResponsibleEntity.schema);
+            ImportMetadata importMetadata = new ImportMetadata();
+            importMetadata.setSession(session);
+            responsibleEntityManager.parseData(testData, importMetadata);
+        } finally {
+            session.close();
+            testData.close();
+        }
+    }
+
+    public void loadManyCompanies(int count) throws Exception {
+        this.loadManyCompanies(count, 0);
+    }
+
+    public void loadManyCompanies(int count, int start) throws Exception {
+        ImportMetadata importMetadata = new ImportMetadata();
+        String testData = InputStreamReader.readInputStream(CvrCombinedTest.class.getResourceAsStream("/company_in.json"));
+        for (int i = start; i < count + start; i++) {
+            String altered = testData.replaceAll("25052943", "1" + String.format("%07d", i)).replaceAll("\n", "");
+            ByteArrayInputStream bais = new ByteArrayInputStream(altered.getBytes("UTF-8"));
+            companyEntityManager.parseData(bais, importMetadata);
+            bais.close();
+        }
     }
 
     private void loadLocality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CprTest.class.getResourceAsStream("/locality.json");
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/locality.json");
         LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
         List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
@@ -148,7 +174,7 @@ public class CprTest {
     }
 
     private void loadRoad(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CprTest.class.getResourceAsStream("/road.json");
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/road.json");
         RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
         List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
@@ -160,7 +186,7 @@ public class CprTest {
     }
 
     private void loadMunicipality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CprTest.class.getResourceAsStream("/municipality.json");
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/municipality.json");
         MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
         List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
@@ -171,10 +197,11 @@ public class CprTest {
         }
     }
 
-    private void loadPostalCode(Session session) throws DataFordelerException {
-        InputStream testData = CprTest.class.getResourceAsStream("/postalcode.json");
+    private void loadPostalcode(Session session) throws DataFordelerException, IOException {
+        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/postalcode.json");
         PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
         List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
+        testData.close();
         for (Registration registration : regs) {
             PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
             QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
@@ -189,61 +216,28 @@ public class CprTest {
             loadLocality(session);
             loadRoad(session);
             loadMunicipality(session);
-            loadPostalCode(session);
+            loadPostalcode(session);
             transaction.commit();
         } finally {
             session.close();
         }
     }
 
-    private static void transfer(ObjectNode from, ObjectNode to, String field) {
-        if (from.has(field)) {
-            to.set(field, from.get(field));
-        } else {
-            to.remove(field);
-        }
-    }
-
-    @Test // seems allright
-    public void test1PersonRecordOutput() throws Exception {
-        loadPerson();
-        loadGladdrregData();
-
-        Session session = sessionManager.getSessionFactory().openSession();
-        LookupService lookupService = new LookupService(session);
-        personOutputWrapper.setLookupService(lookupService);
-        try {
-            String ENTITY = "e";
-            Class eClass = PersonEntity.class;
-            org.hibernate.query.Query<PersonEntity> databaseQuery = session.createQuery("select "+ENTITY+" from " + eClass.getCanonicalName() + " " + ENTITY + " join "+ENTITY+".identification i where i.uuid != null", eClass);
-            databaseQuery.setFlushMode(FlushModeType.COMMIT);
-
-            databaseQuery.setMaxResults(1000);
-
-            for (PersonEntity entity : databaseQuery.getResultList()) {
-                ObjectNode newOutput = (ObjectNode) personOutputWrapper.wrapRecordResult(entity, null);
-                Assert.assertEquals(955, newOutput.get("myndighedskode").intValue() );
-                Assert.assertEquals(3982, newOutput.get("postnummer").intValue() );
-                Assert.assertEquals(1, newOutput.get("vejkode").intValue() );
-                Assert.assertEquals("GL", newOutput.get("landekode").textValue() );
-            }
-        } finally {
-            session.close();
-        }
-    }
-
     @Test
-    public void test2PersonPrisme() throws Exception {
-        loadPerson();
+    public void testCompanyPrisme() throws IOException, DataFordelerException {
+        this.loadGerCompany();
+        this.loadGerParticipant();
         loadGladdrregData();
+        loadCompany();
 
         try {
+
             TestUserDetails testUserDetails = new TestUserDetails();
 
 
             HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
             ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
+                    "/prisme/cvr/3/" + 25052943,
                     HttpMethod.GET,
                     httpEntity,
                     String.class
@@ -251,155 +245,111 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
 
 
+            testUserDetails.giveAccess(CvrRolesDefinition.READ_CVR_ROLE);
+            this.applyAccess(testUserDetails);
+            response = restTemplate.exchange(
+                    "/prisme/cvr/3/" + 25052943,
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
 
 
-        } finally {
-            cleanup();
-        }
-    }
+            testUserDetails.giveAccess(
+                    cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                            CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                    ).getRestriction(
+                            CvrAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                    )
+            );
+            this.applyAccess(testUserDetails);
+            response = restTemplate.exchange(
+                    "/prisme/cvr/3/" + 25052943,
+                    HttpMethod.GET,
+                    httpEntity,
+                    String.class
+            );
+            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
 
 
-    @Test
-    public void test3PersonPrisme() throws Exception {
-        loadPerson();
-        loadGladdrregData();
-
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
-
-            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
-
+            testUserDetails.giveAccess(
+                    cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                            CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                    ).getRestriction(
+                            CvrAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                    )
+            );
             testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
             this.applyAccess(testUserDetails);
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
+            response = restTemplate.exchange(
+                    "/prisme/cvr/3/" + 25052943 + "?returnParticipantDetails=1",
                     HttpMethod.GET,
                     httpEntity,
                     String.class
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-
-
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
-
-
         } finally {
             cleanup();
         }
     }
 
 
-    /**
-     * Test the service cpr/2
-     * Do not currently know why there is two services, but they should both be testet
-     * @throws Exception
-     */
+
     @Test
-    public void test4PersonPrisme() throws Exception {
-        loadPerson();
-        loadGladdrregData();
-
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
-
-            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
-
-            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
-            this.applyAccess(testUserDetails);
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/2/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
-
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/2/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-
-        } finally {
-            cleanup();
-        }
+    public void testGerFallback() throws IOException, DataFordelerException {
+        TestUserDetails testUserDetails = new TestUserDetails();
+        this.loadGerCompany();
+        this.loadGerParticipant();
+        this.loadGladdrregData();
+        testUserDetails.giveAccess(
+                cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CvrAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                )
+        );
+        testUserDetails.giveAccess(CvrRolesDefinition.READ_CVR_ROLE);
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+        ResponseEntity<String> response;
+        response = restTemplate.exchange(
+                "/prisme/cvr/3/" + 12345678 + "?returnParticipantDetails=1",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        log.debug(response.getBody());
     }
 
 
     @Test
-    public void test4PersonBulkPrisme() throws Exception {
+    public void testCompanyBulkPrisme() throws Exception {
 
         OffsetDateTime start = OffsetDateTime.now();
-        loadManyPersons(5, 0);
+        loadManyCompanies(5, 0);
         OffsetDateTime middle = OffsetDateTime.now();
         Thread.sleep(10);
-        loadManyPersons(5, 5);
-        OffsetDateTime afterLoad = OffsetDateTime.now();
+        loadManyCompanies(5, 5);
+
+        OffsetDateTime companyUpdate = OffsetDateTime.parse("2017-04-10T09:01:06.000+02:00");
 
         loadGladdrregData();
+        OffsetDateTime afterLoad = OffsetDateTime.now();
 
         try {
             TestUserDetails testUserDetails = new TestUserDetails();
 
 
-            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+            testUserDetails.giveAccess(CvrRolesDefinition.READ_CVR_ROLE);
             this.applyAccess(testUserDetails);
 
             ObjectNode body = objectMapper.createObjectNode();
-            body.put("cprNumber", "0000000009");
+            body.put("cvrNumber", "10000009");
             HttpEntity<String> httpEntity = new HttpEntity<>(body.toString(), new HttpHeaders());
             ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
+                    "/prisme/cvr/3/",
                     HttpMethod.POST,
                     httpEntity,
                     String.class
@@ -409,13 +359,13 @@ public class CprTest {
 
 
             body = objectMapper.createObjectNode();
-            ArrayNode cprList = objectMapper.createArrayNode();
-            cprList.add("0000000002");
-            cprList.add("0000000005");
-            body.set("cprNumber", cprList);
+            ArrayNode cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000002");
+            cvrList.add("10000005");
+            body.set("cvrNumber", cvrList);
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
             response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
+                    "/prisme/cvr/3/",
                     HttpMethod.POST,
                     httpEntity,
                     String.class
@@ -425,23 +375,23 @@ public class CprTest {
 
 
 
-
             body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000005");
-            cprList.add("0000000006");
-            cprList.add("0000000007");
-            cprList.add("0000000008");
-            cprList.add("0000000009");
-            body.set("cprNumber", cprList);
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+            long tic = Instant.now().toEpochMilli();
             response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
+                    "/prisme/cvr/1/",
                     HttpMethod.POST,
                     httpEntity,
                     String.class
@@ -452,22 +402,23 @@ public class CprTest {
 
 
             body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000005");
-            cprList.add("0000000006");
-            cprList.add("0000000007");
-            cprList.add("0000000008");
-            cprList.add("0000000009");
-            body.set("cprNumber", cprList);
-            body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
+            //body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            body.put("updatedSince", companyUpdate.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
             response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
+                    "/prisme/cvr/1/",
                     HttpMethod.POST,
                     httpEntity,
                     String.class
@@ -475,31 +426,35 @@ public class CprTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
 
+
+
             body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000015");
-            cprList.add("0000000016");
-            cprList.add("0000000017");
-            cprList.add("0000000018");
-            cprList.add("0000000019");
-            body.set("cprNumber", cprList);
-            body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            cvrList = objectMapper.createArrayNode();
+            cvrList.add("10000000");
+            cvrList.add("10000001");
+            cvrList.add("10000002");
+            cvrList.add("10000003");
+            cvrList.add("10000004");
+            cvrList.add("10000005");
+            cvrList.add("10000006");
+            cvrList.add("10000007");
+            cvrList.add("10000008");
+            cvrList.add("10000009");
+            body.set("cvrNumber", cvrList);
+            //body.put("updatedSince", afterLoad.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            body.put("updatedSince", companyUpdate.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
             response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
+                    "/prisme/cvr/1/",
                     HttpMethod.POST,
                     httpEntity,
                     String.class
             );
+            log.debug(response.getBody());
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
+            Assert.assertEquals(0, objectMapper.readTree(response.getBody()).size());
 
-        } finally {
+            } finally {
             cleanup();
         }
     }
@@ -513,7 +468,9 @@ public class CprTest {
         Transaction transaction = session.beginTransaction();
         try {
             for (Entity entity : createdEntities) {
-                session.delete(entity);
+                try {
+                    session.delete(entity);
+                } catch (Exception e) {}
             }
             createdEntities.clear();
         } finally {

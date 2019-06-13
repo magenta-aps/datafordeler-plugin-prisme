@@ -95,10 +95,10 @@ public class CprService {
             personQuery.setPersonnummer(cprNummer);
 
             OffsetDateTime now = OffsetDateTime.now();
-            personQuery.setRegistrationFrom(now);
-            personQuery.setRegistrationTo(now);
-            personQuery.setEffectFrom(now);
-            personQuery.setEffectTo(now);
+            personQuery.setRegistrationFromBefore(now);
+            personQuery.setRegistrationToAfter(now);
+            personQuery.setEffectFromBefore(now);
+            personQuery.setEffectToAfter(now);
 
             personQuery.applyFilters(session);
             this.applyAreaRestrictionsToQuery(personQuery, user);
@@ -107,7 +107,7 @@ public class CprService {
 
             if (!personEntities.isEmpty()) {
                 PersonEntity personEntity = personEntities.get(0);
-                return objectMapper.writeValueAsString(personOutputWrapper.wrapResult(personEntity, personQuery));
+                return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
             }
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
@@ -164,10 +164,10 @@ public class CprService {
         }
 
         OffsetDateTime now = OffsetDateTime.now();
-        personQuery.setRegistrationFrom(now);
-        personQuery.setRegistrationTo(now);
-        personQuery.setEffectFrom(now);
-        personQuery.setEffectTo(now);
+        personQuery.setRegistrationFromBefore(now);
+        personQuery.setRegistrationToAfter(now);
+        personQuery.setEffectFromBefore(now);
+        personQuery.setEffectToAfter(now);
 
         return new StreamingResponseBody() {
 
@@ -201,7 +201,7 @@ public class CprService {
                                 outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
                                 outputStream.write(
                                         objectMapper.writeValueAsString(
-                                                personOutputWrapper.wrapResult(personEntity, personQuery)
+                                                personOutputWrapper.wrapRecordResult(personEntity, personQuery)
                                         ).getBytes(Charset.forName("UTF-8"))
                                 );
                             } catch (IOException e) {

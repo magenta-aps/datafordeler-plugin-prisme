@@ -268,6 +268,7 @@ public class CvrTest {
                             CvrAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
                     )
             );
+            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
             this.applyAccess(testUserDetails);
             response = restTemplate.exchange(
                     "/prisme/cvr/1/" + 25052943 + "?returnParticipantDetails=1",
