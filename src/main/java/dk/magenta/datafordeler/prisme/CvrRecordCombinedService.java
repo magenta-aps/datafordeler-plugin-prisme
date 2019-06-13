@@ -141,6 +141,14 @@ public class CvrRecordCombinedService {
         ObjectNode requestObject = (ObjectNode) requestBody;
         final List<String> cvrNumbers = (requestObject.has(PARAM_CVR_NUMBER)) ? this.getCvrNumber(requestObject.get(PARAM_CVR_NUMBER)) : null;
         boolean returnParticipantDetails = "1".equals(request.getParameter(PARAM_RETURN_PARTICIPANT_DETAILS));
+        DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
+        LoggerHelper loggerHelper = new LoggerHelper(log, request, user);
+        loggerHelper.info(
+                "Incoming REST request for PrismeCvrService with cvrNummer " + cvrNumbers + " and " +
+                        PARAM_RETURN_PARTICIPANT_DETAILS + " = " + returnParticipantDetails
+        );
+        this.checkAndLogAccess(loggerHelper, returnParticipantDetails);
+
         ObjectNode formattedRecord = getJSONFromCvrList(cvrNumbers, returnParticipantDetails, true);
 
         return new StreamingResponseBody() {
