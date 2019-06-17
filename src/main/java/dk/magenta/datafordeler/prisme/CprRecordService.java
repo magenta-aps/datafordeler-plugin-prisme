@@ -46,8 +46,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @RestController
-@RequestMapping("/prisme/cpr/1")
-public class CprService {
+@RequestMapping("/prisme/cpr/2")
+public class CprRecordService {
 
     @Autowired
     SessionManager sessionManager;
@@ -64,15 +64,15 @@ public class CprService {
     @Autowired
     protected MonitorService monitorService;
 
-    private Logger log = LogManager.getLogger(CprService.class.getCanonicalName());
+    private Logger log = LogManager.getLogger(CprRecordService.class.getCanonicalName());
 
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;
 
     @PostConstruct
     public void init() {
-        this.monitorService.addAccessCheckPoint("/prisme/cpr/1/1234");
-        this.monitorService.addAccessCheckPoint("POST", "/prisme/cpr/1/", "{}");
+        this.monitorService.addAccessCheckPoint("/prisme/cpr/2/1234");
+        this.monitorService.addAccessCheckPoint("POST", "/prisme/cpr/2/", "{}");
     }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
@@ -169,55 +169,51 @@ public class CprService {
         personQuery.setEffectFromBefore(now);
         personQuery.setEffectToAfter(now);
 
-        return new StreamingResponseBody() {
+        return outputStream -> {
 
-            @Override
-            public void writeTo(OutputStream outputStream) throws IOException {
+            final Session lookupSession = sessionManager.getSessionFactory().openSession();
+            LookupService lookupService = new LookupService(lookupSession);
+            personOutputWrapper.setLookupService(lookupService);
 
-                final Session lookupSession = sessionManager.getSessionFactory().openSession();
-                LookupService lookupService = new LookupService(lookupSession);
-                personOutputWrapper.setLookupService(lookupService);
+            final Session entitySession = sessionManager.getSessionFactory().openSession();
+            try {
 
-                final Session entitySession = sessionManager.getSessionFactory().openSession();
-                try {
+                personQuery.applyFilters(entitySession);
+                CprRecordService.this.applyAreaRestrictionsToQuery(personQuery, user);
 
-                    personQuery.applyFilters(entitySession);
-                    CprService.this.applyAreaRestrictionsToQuery(personQuery, user);
+                Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, personQuery, PersonEntity.class);
+                outputStream.write(START_OBJECT);
+                personEntities.forEach(new Consumer<PersonEntity>() {
+                    boolean first = true;
 
-                    Stream<PersonEntity> personEntities = QueryManager.getAllEntitiesAsStream(entitySession, personQuery, PersonEntity.class);
-                    outputStream.write(START_OBJECT);
-                    personEntities.forEach(new Consumer<PersonEntity>() {
-                        boolean first = true;
-
-                        @Override
-                        public void accept(PersonEntity personEntity) {
-                            try {
-                                if (!first) {
-                                    outputStream.flush();
-                                    outputStream.write(OBJECT_SEPARATOR);
-                                } else {
-                                    first = false;
-                                }
-                                outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
-                                outputStream.write(
-                                        objectMapper.writeValueAsString(
-                                                personOutputWrapper.wrapRecordResult(personEntity, personQuery)
-                                        ).getBytes(Charset.forName("UTF-8"))
-                                );
-                            } catch (IOException e) {
-                                e.printStackTrace();
+                    @Override
+                    public void accept(PersonEntity personEntity) {
+                        try {
+                            if (!first) {
+                                outputStream.flush();
+                                outputStream.write(OBJECT_SEPARATOR);
+                            } else {
+                                first = false;
                             }
-                            entitySession.evict(personEntity);
+                            outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
+                            outputStream.write(
+                                    objectMapper.writeValueAsString(
+                                            personOutputWrapper.wrapRecordResult(personEntity, personQuery)
+                                    ).getBytes(Charset.forName("UTF-8"))
+                            );
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
-                    });
-                    outputStream.write(END_OBJECT);
-                    outputStream.flush();
-                } catch (InvalidClientInputException e) {
-                    e.printStackTrace();
-                } finally {
-                    entitySession.close();
-                    lookupSession.close();
-                }
+                        entitySession.evict(personEntity);
+                    }
+                });
+                outputStream.write(END_OBJECT);
+                outputStream.flush();
+            } catch (InvalidClientInputException e) {
+                e.printStackTrace();
+            } finally {
+                entitySession.close();
+                lookupSession.close();
             }
         };
     }

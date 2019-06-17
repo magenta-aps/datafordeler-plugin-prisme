@@ -43,6 +43,12 @@
             <scope>compile</scope>
         </dependency>
         <dependency>
+            <groupId>dk.magenta.datafordeler</groupId>
+            <artifactId>datafordeler-plugin-ger</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <version>${spring.boot.version}</version>
@@ -69,20 +75,6 @@
                 </configuration>
                 <version>2.6</version>
             </plugin>
-<!--
-            <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-bundle-plugin</artifactId>
-                <extensions>true</extensions>
-                <configuration>
-                    <instructions>
-                        <Bundle-SymbolicName>OSGiCprPluginProvider</Bundle-SymbolicName>
-                        <Export-Package>dk.magenta.datafordeler.cpr</Export-Package>
-                        <Bundle-Vendor>Magenta</Bundle-Vendor>
-                    </instructions>
-                </configuration>
-            </plugin>
--->
         </plugins>
     </build>
 
