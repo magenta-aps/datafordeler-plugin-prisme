@@ -65,8 +65,6 @@ public class SameAddressService {
 
     @PostConstruct
     public void init() {
-        this.monitorService.addAccessCheckPoint("/prisme/sameaddress/1/1234");
-        this.monitorService.addAccessCheckPoint("POST", "/prisme/sameaddress/1/", "{}");
     }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cprNumber}", produces = {MediaType.APPLICATION_JSON_VALUE})
