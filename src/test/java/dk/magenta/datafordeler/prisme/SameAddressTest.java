@@ -24,7 +24,7 @@ import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityRegistrat
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntityManager;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
+import dk.magenta.datafordeler.gladdrreg.data.road.GladdrregRoadEntity;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
 import org.hamcrest.CoreMatchers;
@@ -41,6 +41,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -58,6 +59,7 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@DirtiesContext(classMode= DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 public class SameAddressTest {
 
     @Autowired
@@ -150,7 +152,7 @@ public class SameAddressTest {
 
     private void loadRoad(Session session) throws DataFordelerException, IOException {
         InputStream testData = SameAddressTest.class.getResourceAsStream("/road.json");
-        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
+        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(GladdrregRoadEntity.schema);
         List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
         testData.close();
         for (Registration registration : regs) {
