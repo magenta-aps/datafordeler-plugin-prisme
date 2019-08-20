@@ -21,6 +21,7 @@ import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
+import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
@@ -69,6 +70,9 @@ public class CprRecordService {
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;
 
+    @Autowired
+    private CprDirectLookup cprDirectLookup;
+
     @PostConstruct
     public void init() {
         this.monitorService.addAccessCheckPoint("/prisme/cpr/2/1234");
@@ -107,8 +111,18 @@ public class CprRecordService {
 
             if (!personEntities.isEmpty()) {
                 PersonEntity personEntity = personEntities.get(0);
-                return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
+                if (this.acceptPersonEntity(personEntity)) {
+                    return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
+                }
             }
+            try {
+                PersonEntity personEntity = cprDirectLookup.getPerson(cprNummer);
+                // TODO: Subscribe
+                return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
+            } catch (DataStreamException e) {
+                log.error(e);
+            }
+
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
             session.close();
@@ -253,6 +267,12 @@ public class CprRecordService {
             cprNumbers.add(String.format("%010d", node.asInt()));
         }
         return cprNumbers;
+    }
+
+    // Some people have very little data on them, and we're better off looking them up directly
+    private boolean acceptPersonEntity(PersonEntity entity) {
+        if (entity.getAddress().isEmpty()) return false;
+        return true;
     }
 
 

@@ -17,6 +17,7 @@ import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
+import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
@@ -38,6 +39,8 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -56,6 +59,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.StringJoiner;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 
@@ -215,7 +220,7 @@ public class CprTest {
         try {
             String ENTITY = "e";
             Class eClass = PersonEntity.class;
-            org.hibernate.query.Query<PersonEntity> databaseQuery = session.createQuery("select "+ENTITY+" from " + eClass.getCanonicalName() + " " + ENTITY + " join "+ENTITY+".identification i where i.uuid != null", eClass);
+            org.hibernate.query.Query<PersonEntity> databaseQuery = session.createQuery("select " + ENTITY + " from " + eClass.getCanonicalName() + " " + ENTITY + " join " + ENTITY + ".identification i where i.uuid != null", eClass);
             databaseQuery.setFlushMode(FlushModeType.COMMIT);
 
             databaseQuery.setMaxResults(1000);
@@ -235,7 +240,6 @@ public class CprTest {
     @Test
     public void test2PersonPrisme() throws Exception {
         loadPerson();
-        loadGladdrregData();
 
         try {
             TestUserDetails testUserDetails = new TestUserDetails();
@@ -249,8 +253,6 @@ public class CprTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-
-
 
 
         } finally {
@@ -279,7 +281,6 @@ public class CprTest {
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
 
 
             testUserDetails.giveAccess(
@@ -328,6 +329,7 @@ public class CprTest {
     /**
      * Test the service cpr/2
      * Do not currently know why there is two services, but they should both be testet
+     *
      * @throws Exception
      */
     @Test
@@ -424,8 +426,6 @@ public class CprTest {
             Assert.assertEquals(2, objectMapper.readTree(response.getBody()).size());
 
 
-
-
             body = objectMapper.createObjectNode();
             cprList = objectMapper.createArrayNode();
             cprList.add("0000000000");
@@ -448,7 +448,6 @@ public class CprTest {
             );
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
-
 
 
             body = objectMapper.createObjectNode();
@@ -526,4 +525,87 @@ public class CprTest {
         }
     }
 
+    @SpyBean
+    private CprDirectLookup cprDirectLookup;
+
+    @Test
+    public void testDirectLookup1() throws Exception {
+
+        String cpr = "0707611234";
+        String data = "038406fJrr7CCxWUDI0178001590000000000000003840120190808000000000010707611234          01000000000000 M1961-07-07 1961-07-07*           Socialrådg.                       002070761123409550001101 01  mf                                      198010102000 196107071034 0000000000000000                                                                                                                                                                                                   0030707611234Mortensen,Jens                                                                                        Boulevarden 101,1 mf                                                6800Varde               05735731101 01  mf    Boulevarden         0080707611234Jens                                                                                        Mortensen                                196107072000 Mortensen,Jens                    00907076112345150                    01007076112345100199103201299*0110707611234F1961-07-07*0120707611234F0706611234                                              198010012000             014070761123413018140770140707611234131281123401507076112341961-07-07*0912414434                                              1961-07-07*0909414385                                              01707076112342019-04-10*          0002                    Terd                              2019-04-10grd                                                                                                                                                                       999999999999900000012";
+        Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq(cpr));
+        TestUserDetails testUserDetails = new TestUserDetails();
+
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/2/" + cpr,
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        ObjectNode responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+
+        Assert.assertEquals("0707611234", responseObject.get("cprNummer").asText());
+        Assert.assertEquals("Jens", responseObject.get("fornavn").asText());
+        Assert.assertEquals("Mortensen", responseObject.get("efternavn").asText());
+        Assert.assertEquals("F", responseObject.get("civilstand").asText());
+        Assert.assertEquals("1980-10-01", responseObject.get("civilstandsdato").asText());
+        Assert.assertEquals("0706611234", responseObject.get("ægtefælleCprNummer").asText());
+        Assert.assertEquals(false, responseObject.get("adressebeskyttelse").asBoolean());
+        Assert.assertEquals("M", responseObject.get("køn").asText());
+        Assert.assertEquals("0909414385", responseObject.get("far").asText());
+        Assert.assertEquals("0912414434", responseObject.get("mor").asText());
+        Assert.assertEquals(1, responseObject.get("statuskode").asInt());
+        Assert.assertEquals("1980-10-10", responseObject.get("tilflytningsdato").asText());
+        Assert.assertEquals(955, responseObject.get("myndighedskode").asInt());
+        Assert.assertEquals(1, responseObject.get("vejkode").asInt());
+        Assert.assertEquals(3982, responseObject.get("postnummer").asInt());
+        Assert.assertEquals(500, responseObject.get("stedkode").asInt());
+        Assert.assertEquals("GL", responseObject.get("landekode").asText());
+    }
+
+
+    @Test
+    public void testDirectLookup2() throws Exception {
+
+        String cpr = "0607621234";
+        String data = "038406uKBKxWLcWUDI0178001104000000000000003840120190815000000000010607621234          90200502051034 M1962-07-06 2005-10-20                                              0030607621234Petersen,Mads Munk                                                                                                                                                                                                                          0080607621234Mads                                               Munk                                     Petersen                                 196207061029 Petersen,Mads Munk                00906076212345180                    01006076212345180196207061029*0110607621234U1962-07-06 0120607621234D0506650038                                              200502051034             01406076212340506871018014060762123405089210040140607621234060794106801406076212340705901007014060762123407059600110140607621234080789104901506076212341962-07-06*0000000000                                              1962-07-06*0000000000                                              999999999999900000014";
+
+        Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq(cpr));
+        TestUserDetails testUserDetails = new TestUserDetails();
+
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/2/" + cpr,
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+
+        ObjectNode responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+
+        Assert.assertEquals("0607621234", responseObject.get("cprNummer").asText());
+        Assert.assertEquals("Mads Munk", responseObject.get("fornavn").asText());
+        Assert.assertEquals("Petersen", responseObject.get("efternavn").asText());
+        Assert.assertEquals("D", responseObject.get("civilstand").asText());
+        Assert.assertEquals("2005-02-05", responseObject.get("civilstandsdato").asText());
+        Assert.assertEquals("0506650038", responseObject.get("ægtefælleCprNummer").asText());
+        Assert.assertEquals(false, responseObject.get("adressebeskyttelse").asBoolean());
+        Assert.assertEquals("M", responseObject.get("køn").asText());
+        Assert.assertEquals(90, responseObject.get("statuskode").asInt());
+        Assert.assertNull(responseObject.get("far"));
+        Assert.assertNull(responseObject.get("mor"));
+        Assert.assertNull(responseObject.get("tilflytningsdato"));
+        Assert.assertNull(responseObject.get("myndighedskode"));
+        Assert.assertNull(responseObject.get("vejkode"));
+        Assert.assertNull(responseObject.get("postnummer"));
+        Assert.assertNull(responseObject.get("stedkode"));
+        Assert.assertNull(responseObject.get("landekode"));
+    }
 }
