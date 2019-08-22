@@ -119,12 +119,15 @@ public class CprRecordService {
                     return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
                 }
             }
-            try {
-                PersonEntity personEntity = cprDirectLookup.getPerson(cprNummer);
-                // TODO: Subscribe
-                return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
-            } catch (DataStreamException e) {
-                log.error(e);
+
+            if (!hasAreaRestrictions(user)) {
+                try {
+                    PersonEntity personEntity = cprDirectLookup.getPerson(cprNummer);
+                    // TODO: Subscribe
+                    return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
+                } catch (DataStreamException e) {
+                    log.error(e);
+                }
             }
 
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
@@ -151,7 +154,9 @@ public class CprRecordService {
         if (!requestBody.isObject()) {
             throw new InvalidClientInputException("Input is not a JSON object");
         }
+        System.out.println("requestBody: "+requestBody);
         ObjectNode requestObject = (ObjectNode) requestBody;
+        System.out.println("requestObject: "+objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestObject));
 
         final OffsetDateTime updatedSince = requestObject.has(PARAM_UPDATED_SINCE) ? Query.parseDateTime(requestObject.get(PARAM_UPDATED_SINCE).asText(), false) : null;
 
@@ -163,7 +168,7 @@ public class CprRecordService {
         loggerHelper.info(
                 "Incoming REST request for PrismeCprService with " +
                         PARAM_UPDATED_SINCE + " = " + updatedSince + " and " +
-                        PARAM_CPR_NUMBER + " = " + (cprNumbers != null && cprNumbers.size() > 10 ? (cprNumbers.size() + " cpr numbers") : cprNumbers)
+                        PARAM_CPR_NUMBER + " = " + cprNumbers
         );
         this.checkAndLogAccess(loggerHelper);
 
@@ -224,7 +229,7 @@ public class CprRecordService {
                 outputStream.write(START_OBJECT);
                 personEntities.forEach(entityWriter);
 
-                if (!cprNumbers.isEmpty()) {
+                if (!cprNumbers.isEmpty() && !hasAreaRestrictions(user)) {
                     List<String> remaining = new ArrayList<>(cprNumbers);
                     remaining.stream().map(pnr -> {
                         try {
@@ -267,6 +272,10 @@ public class CprRecordService {
                 query.addKommunekode(restriction.getValue());
             }
         }
+    }
+
+    private static boolean hasAreaRestrictions(DafoUserDetails user) {
+        return !user.getAreaRestrictionsForRole(CprRolesDefinition.READ_CPR_ROLE).isEmpty();
     }
 
     private static Pattern nonDigits = Pattern.compile("[^\\d]");

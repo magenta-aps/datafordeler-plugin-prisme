@@ -41,6 +41,12 @@ public class AliasService {
     }
 
     @RequestMapping(method = RequestMethod.POST, path = "/", produces = {MediaType.APPLICATION_JSON_VALUE})
+    public StreamingResponseBody getCprBulkDeprecate(HttpServletRequest request)
+            throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, IOException, HttpNotFoundException, InvalidCertificateException {
+        return this.cprService.getBulk(request);
+    }
+
+    @RequestMapping(method = RequestMethod.POST, path = "/cpr", produces = {MediaType.APPLICATION_JSON_VALUE})
     public StreamingResponseBody getCprBulk(HttpServletRequest request)
             throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, IOException, HttpNotFoundException, InvalidCertificateException {
         return this.cprService.getBulk(request);
