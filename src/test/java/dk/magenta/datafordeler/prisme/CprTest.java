@@ -608,4 +608,69 @@ public class CprTest {
         Assert.assertNull(responseObject.get("stedkode"));
         Assert.assertNull(responseObject.get("landekode"));
     }
+
+
+    @Test
+    public void testDirectLookup3() throws Exception {
+
+        String data = "038406uKBKxWLcWUDI0178001104000000000000003840120190815000000000010607621234          90200502051034 M1962-07-06 2005-10-20                                              0030607621234Petersen,Mads Munk                                                                                                                                                                                                                          0080607621234Mads                                               Munk                                     Petersen                                 196207061029 Petersen,Mads Munk                00906076212345180                    01006076212345180196207061029*0110607621234U1962-07-06 0120607621234D0506650038                                              200502051034             01406076212340506871018014060762123405089210040140607621234060794106801406076212340705901007014060762123407059600110140607621234080789104901506076212341962-07-06*0000000000                                              1962-07-06*0000000000                                              999999999999900000014";
+
+        Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq("0607621234"));
+        TestUserDetails testUserDetails = new TestUserDetails();
+
+        loadPerson();
+
+        HttpEntity<String> httpEntity = new HttpEntity<String>("{\"cprNumber\":[\"0101001234\",\"0607621234\"]}", new HttpHeaders());
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                "/prisme/cpr/2/",
+                httpEntity,
+                String.class
+        );
+
+        ObjectNode responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+        Assert.assertEquals(2, responseObject.size());
+
+        Assert.assertTrue(responseObject.has("0607621234"));
+        ObjectNode personObject = (ObjectNode) responseObject.get("0607621234");
+        Assert.assertEquals("0607621234", personObject.get("cprNummer").asText());
+        Assert.assertEquals("Mads Munk", personObject.get("fornavn").asText());
+        Assert.assertEquals("Petersen", personObject.get("efternavn").asText());
+        Assert.assertEquals("D", personObject.get("civilstand").asText());
+        Assert.assertEquals("2005-02-05", personObject.get("civilstandsdato").asText());
+        Assert.assertEquals("0506650038", personObject.get("ægtefælleCprNummer").asText());
+        Assert.assertEquals(false, personObject.get("adressebeskyttelse").asBoolean());
+        Assert.assertEquals("M", personObject.get("køn").asText());
+        Assert.assertEquals(90, personObject.get("statuskode").asInt());
+        Assert.assertNull(personObject.get("far"));
+        Assert.assertNull(personObject.get("mor"));
+        Assert.assertNull(personObject.get("tilflytningsdato"));
+        Assert.assertNull(personObject.get("myndighedskode"));
+        Assert.assertNull(personObject.get("vejkode"));
+        Assert.assertNull(personObject.get("postnummer"));
+        Assert.assertNull(personObject.get("stedkode"));
+        Assert.assertNull(personObject.get("landekode"));
+
+        Assert.assertTrue(responseObject.has("0101001234"));
+        personObject = (ObjectNode) responseObject.get("0101001234");
+        Assert.assertEquals("0101001234", personObject.get("cprNummer").asText());
+        Assert.assertEquals("Tester Testmember", personObject.get("fornavn").asText());
+        Assert.assertEquals("Testersen", personObject.get("efternavn").asText());
+        Assert.assertEquals("G", personObject.get("civilstand").asText());
+        Assert.assertEquals("2017-10-12", personObject.get("civilstandsdato").asText());
+        Assert.assertEquals("0202994321", personObject.get("ægtefælleCprNummer").asText());
+        Assert.assertEquals(false, personObject.get("adressebeskyttelse").asBoolean());
+        Assert.assertEquals("K", personObject.get("køn").asText());
+        Assert.assertEquals(5, personObject.get("statuskode").asInt());
+        Assert.assertEquals("0101641234", personObject.get("far").asText());
+        Assert.assertEquals("2903641234", personObject.get("mor").asText());
+        Assert.assertEquals("2016-08-31", personObject.get("tilflytningsdato").asText());
+        Assert.assertEquals(955, personObject.get("myndighedskode").asInt());
+        Assert.assertEquals(1, personObject.get("vejkode").asInt());
+        Assert.assertEquals(3982, personObject.get("postnummer").asInt());
+        Assert.assertEquals(500, personObject.get("stedkode").asInt());
+        Assert.assertEquals("GL", personObject.get("landekode").asText());
+    }
 }
