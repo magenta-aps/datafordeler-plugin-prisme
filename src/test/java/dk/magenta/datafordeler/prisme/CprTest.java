@@ -17,6 +17,8 @@ import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
+import dk.magenta.datafordeler.cpr.data.person.PersonSubscription;
+import dk.magenta.datafordeler.cpr.data.person.PersonSubscriptionAssignmentStatus;
 import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
 import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
@@ -565,6 +567,17 @@ public class CprTest {
         Assert.assertEquals(3982, responseObject.get("postnummer").asInt());
         Assert.assertEquals(500, responseObject.get("stedkode").asInt());
         Assert.assertEquals("GL", responseObject.get("landekode").asText());
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            List<PersonSubscription> existingSubscriptions = QueryManager.getAllItems(session, PersonSubscription.class);
+            Assert.assertEquals(1, existingSubscriptions.size());
+            PersonSubscription subscription = existingSubscriptions.get(0);
+            Assert.assertEquals("0707611234", subscription.getPersonNumber());
+            Assert.assertEquals(PersonSubscriptionAssignmentStatus.CreatedInTable, subscription.getAssignment());
+        } finally {
+            session.close();
+        }
     }
 
 
@@ -607,6 +620,17 @@ public class CprTest {
         Assert.assertNull(responseObject.get("postnummer"));
         Assert.assertNull(responseObject.get("stedkode"));
         Assert.assertNull(responseObject.get("landekode"));
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            List<PersonSubscription> existingSubscriptions = QueryManager.getAllItems(session, PersonSubscription.class);
+            Assert.assertEquals(1, existingSubscriptions.size());
+            PersonSubscription subscription = existingSubscriptions.get(0);
+            Assert.assertEquals("0607621234", subscription.getPersonNumber());
+            Assert.assertEquals(PersonSubscriptionAssignmentStatus.CreatedInTable, subscription.getAssignment());
+        } finally {
+            session.close();
+        }
     }
 
 
@@ -672,5 +696,16 @@ public class CprTest {
         Assert.assertEquals(3982, personObject.get("postnummer").asInt());
         Assert.assertEquals(500, personObject.get("stedkode").asInt());
         Assert.assertEquals("GL", personObject.get("landekode").asText());
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            List<PersonSubscription> existingSubscriptions = QueryManager.getAllItems(session, PersonSubscription.class);
+            Assert.assertEquals(1, existingSubscriptions.size());
+            PersonSubscription subscription = existingSubscriptions.get(0);
+            Assert.assertEquals("0607621234", subscription.getPersonNumber());
+            Assert.assertEquals(PersonSubscriptionAssignmentStatus.CreatedInTable, subscription.getAssignment());
+        } finally {
+            session.close();
+        }
     }
 }

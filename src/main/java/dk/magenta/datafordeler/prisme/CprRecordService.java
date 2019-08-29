@@ -21,6 +21,7 @@ import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
+import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
 import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
 import org.apache.logging.log4j.LogManager;
@@ -41,10 +42,7 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -76,6 +74,9 @@ public class CprRecordService {
 
     @Autowired
     private CprDirectLookup cprDirectLookup;
+
+    @Autowired
+    private PersonEntityManager entityManager;
 
     @PostConstruct
     public void init() {
@@ -123,7 +124,9 @@ public class CprRecordService {
             if (!hasAreaRestrictions(user)) {
                 try {
                     PersonEntity personEntity = cprDirectLookup.getPerson(cprNummer);
-                    // TODO: Subscribe
+                    if (personEntity != null) {
+                        entityManager.createSubscription(Collections.singleton(cprNummer));
+                    }
                     return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
                 } catch (DataStreamException e) {
                     log.error(e);
@@ -229,20 +232,28 @@ public class CprRecordService {
                 outputStream.write(START_OBJECT);
                 personEntities.forEach(entityWriter);
 
+                HashSet<String> found = new HashSet<>();
                 if (!cprNumbers.isEmpty() && !hasAreaRestrictions(user)) {
                     List<String> remaining = new ArrayList<>(cprNumbers);
                     remaining.stream().map(pnr -> {
                         try {
-                            return cprDirectLookup.getPerson(pnr);
+                            PersonEntity personEntity = cprDirectLookup.getPerson(pnr);
+                            if (personEntity != null) {
+                                found.add(pnr);
+                                return personEntity;
+                            }
                         } catch (DataStreamException e) {
                             log.warn(e);
-                            return null;
                         }
+                        return null;
                     }).forEach(entityWriter);
                 }
 
                 outputStream.write(END_OBJECT);
                 outputStream.flush();
+
+                entityManager.createSubscription(found);
+
             } catch (InvalidClientInputException e) {
                 e.printStackTrace();
             } finally {
