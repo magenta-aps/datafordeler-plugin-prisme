@@ -4,10 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
-import dk.magenta.datafordeler.core.database.Entity;
-import dk.magenta.datafordeler.core.database.QueryManager;
-import dk.magenta.datafordeler.core.database.Registration;
-import dk.magenta.datafordeler.core.database.SessionManager;
+import dk.magenta.datafordeler.core.database.*;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
@@ -36,10 +33,7 @@ import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
 import org.hamcrest.CoreMatchers;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.mockito.ArgumentMatchers;
@@ -59,6 +53,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.StringJoiner;
@@ -72,8 +67,8 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@DirtiesContext(classMode= DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-public class CprTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
+public class CprTest extends TestBase {
 
     @Autowired
     private SessionManager sessionManager;
@@ -102,7 +97,11 @@ public class CprTest {
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;
 
-    HashSet<Entity> createdEntities = new HashSet<>();
+    @After
+    public void cleanup() {
+        this.cleanupPersonData(sessionManager);
+        this.cleanupGladdrregData(sessionManager);
+    }
 
     public void loadPerson() throws Exception {
         InputStream testData = CprTest.class.getResourceAsStream("/person.txt");
@@ -145,66 +144,10 @@ public class CprTest {
         session.close();
     }
 
-    private void loadLocality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CprTest.class.getResourceAsStream("/locality.json");
-        LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
-        List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            LocalityRegistration localityRegistration = (LocalityRegistration) registration;
-            QueryManager.saveRegistration(session, localityRegistration.getEntity(), localityRegistration);
-            createdEntities.add(localityRegistration.getEntity());
-        }
-    }
-
-    private void loadRoad(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CprTest.class.getResourceAsStream("/road.json");
-        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
-        List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            RoadRegistration roadRegistration = (RoadRegistration) registration;
-            QueryManager.saveRegistration(session, roadRegistration.getEntity(), roadRegistration);
-            createdEntities.add(roadRegistration.getEntity());
-        }
-    }
-
-    private void loadMunicipality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CprTest.class.getResourceAsStream("/municipality.json");
-        MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
-        List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            MunicipalityRegistration municipalityRegistration = (MunicipalityRegistration) registration;
-            QueryManager.saveRegistration(session, municipalityRegistration.getEntity(), municipalityRegistration);
-            createdEntities.add(municipalityRegistration.getEntity());
-        }
-    }
-
-    private void loadPostalCode(Session session) throws DataFordelerException {
-        InputStream testData = CprTest.class.getResourceAsStream("/postalcode.json");
-        PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
-        List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
-        for (Registration registration : regs) {
-            PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
-            QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
-            createdEntities.add(postalCodeRegistration.getEntity());
-        }
-    }
 
     @Before
-    public void loadGladdrregData() throws IOException, DataFordelerException {
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            Transaction transaction = session.beginTransaction();
-            loadLocality(session);
-            loadRoad(session);
-            loadMunicipality(session);
-            loadPostalCode(session);
-            transaction.commit();
-        } finally {
-            session.close();
-        }
+    public void load() throws IOException, DataFordelerException {
+        this.loadGladdrregData(gladdrregPlugin, sessionManager);
     }
 
     private static void transfer(ObjectNode from, ObjectNode to, String field) {
@@ -217,7 +160,6 @@ public class CprTest {
 
     @Test
     public void test1PersonRecordOutput() throws Exception {
-        loadPerson();
 
         Session session = sessionManager.getSessionFactory().openSession();
         LookupService lookupService = new LookupService(session);
@@ -232,13 +174,13 @@ public class CprTest {
 
             for (PersonEntity entity : databaseQuery.getResultList()) {
                 ObjectNode newOutput = (ObjectNode) personOutputWrapper.wrapRecordResult(entity, null);
-                Assert.assertEquals(955, newOutput.get("myndighedskode").intValue() );
+                Assert.assertEquals(955, newOutput.get("myndighedskode").intValue());
 
                 //Postnummer does not work when running the unittest with maven, it works when running manually.
                 //Since it is gladdreg and is on its way out, this test is disabled
                 //Assert.assertEquals(3982, newOutput.get("postnummer").intValue() );
-                Assert.assertEquals(1, newOutput.get("vejkode").intValue() );
-                Assert.assertEquals("GL", newOutput.get("landekode").textValue() );
+                Assert.assertEquals(1, newOutput.get("vejkode").intValue());
+                Assert.assertEquals("GL", newOutput.get("landekode").textValue());
             }
         } finally {
             session.close();
@@ -249,23 +191,14 @@ public class CprTest {
     public void test2PersonPrisme() throws Exception {
         loadPerson();
 
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
-
-
-            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-
-
-        } finally {
-            cleanup();
-        }
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
     }
 
 
@@ -273,63 +206,58 @@ public class CprTest {
     public void test3PersonPrisme() throws Exception {
         loadPerson();
 
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
+        TestUserDetails testUserDetails = new TestUserDetails();
 
-            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
 
-            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
-            this.applyAccess(testUserDetails);
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
 
-        } finally {
-            cleanup();
-        }
+        testUserDetails.giveAccess(
+                cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                )
+        );
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        testUserDetails.giveAccess(
+                cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                )
+        );
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
+
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
+
     }
 
 
@@ -343,44 +271,40 @@ public class CprTest {
     public void test4PersonPrisme() throws Exception {
         loadPerson();
 
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
+        TestUserDetails testUserDetails = new TestUserDetails();
 
-            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
 
-            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
-            this.applyAccess(testUserDetails);
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/2/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/2/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"far\":\"0101641234\""));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"mor\":\"2903641234\""));
 
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/cpr/2/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        testUserDetails.giveAccess(
+                cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                )
+        );
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/cpr/2/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
 
-        } finally {
-            cleanup();
-        }
     }
 
 
@@ -394,139 +318,117 @@ public class CprTest {
         loadManyPersons(5, 5);
         OffsetDateTime afterLoad = OffsetDateTime.now();
 
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
+        TestUserDetails testUserDetails = new TestUserDetails();
 
 
-            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
-            this.applyAccess(testUserDetails);
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
 
-            ObjectNode body = objectMapper.createObjectNode();
-            body.put("cprNumber", "0000000009");
-            HttpEntity<String> httpEntity = new HttpEntity<>(body.toString(), new HttpHeaders());
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(1, objectMapper.readTree(response.getBody()).size());
-
-
-            body = objectMapper.createObjectNode();
-            ArrayNode cprList = objectMapper.createArrayNode();
-            cprList.add("0000000002");
-            cprList.add("0000000005");
-            body.set("cprNumber", cprList);
-            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(2, objectMapper.readTree(response.getBody()).size());
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("cprNumber", "0000000009");
+        HttpEntity<String> httpEntity = new HttpEntity<>(body.toString(), new HttpHeaders());
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/1/",
+                HttpMethod.POST,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertEquals(1, objectMapper.readTree(response.getBody()).size());
 
 
-            body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000005");
-            cprList.add("0000000006");
-            cprList.add("0000000007");
-            cprList.add("0000000008");
-            cprList.add("0000000009");
-            body.set("cprNumber", cprList);
-            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+        body = objectMapper.createObjectNode();
+        ArrayNode cprList = objectMapper.createArrayNode();
+        cprList.add("0000000002");
+        cprList.add("0000000005");
+        body.set("cprNumber", cprList);
+        httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/",
+                HttpMethod.POST,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertEquals(2, objectMapper.readTree(response.getBody()).size());
 
 
-            body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000005");
-            cprList.add("0000000006");
-            cprList.add("0000000007");
-            cprList.add("0000000008");
-            cprList.add("0000000009");
-            body.set("cprNumber", cprList);
-            body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+        body = objectMapper.createObjectNode();
+        cprList = objectMapper.createArrayNode();
+        cprList.add("0000000000");
+        cprList.add("0000000001");
+        cprList.add("0000000002");
+        cprList.add("0000000003");
+        cprList.add("0000000004");
+        cprList.add("0000000005");
+        cprList.add("0000000006");
+        cprList.add("0000000007");
+        cprList.add("0000000008");
+        cprList.add("0000000009");
+        body.set("cprNumber", cprList);
+        httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/",
+                HttpMethod.POST,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
 
-            body = objectMapper.createObjectNode();
-            cprList = objectMapper.createArrayNode();
-            cprList.add("0000000000");
-            cprList.add("0000000001");
-            cprList.add("0000000002");
-            cprList.add("0000000003");
-            cprList.add("0000000004");
-            cprList.add("0000000015");
-            cprList.add("0000000016");
-            cprList.add("0000000017");
-            cprList.add("0000000018");
-            cprList.add("0000000019");
-            body.set("cprNumber", cprList);
-            body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-            httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
-            response = restTemplate.exchange(
-                    "/prisme/cpr/1/",
-                    HttpMethod.POST,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
 
-        } finally {
-            cleanup();
-        }
+        body = objectMapper.createObjectNode();
+        cprList = objectMapper.createArrayNode();
+        cprList.add("0000000000");
+        cprList.add("0000000001");
+        cprList.add("0000000002");
+        cprList.add("0000000003");
+        cprList.add("0000000004");
+        cprList.add("0000000005");
+        cprList.add("0000000006");
+        cprList.add("0000000007");
+        cprList.add("0000000008");
+        cprList.add("0000000009");
+        body.set("cprNumber", cprList);
+        body.put("updatedSince", start.minusSeconds(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/",
+                HttpMethod.POST,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertEquals(10, objectMapper.readTree(response.getBody()).size());
+
+        body = objectMapper.createObjectNode();
+        cprList = objectMapper.createArrayNode();
+        cprList.add("0000000000");
+        cprList.add("0000000001");
+        cprList.add("0000000002");
+        cprList.add("0000000003");
+        cprList.add("0000000004");
+        cprList.add("0000000015");
+        cprList.add("0000000016");
+        cprList.add("0000000017");
+        cprList.add("0000000018");
+        cprList.add("0000000019");
+        body.set("cprNumber", cprList);
+        body.put("updatedSince", middle.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        httpEntity = new HttpEntity<String>(body.toString(), new HttpHeaders());
+        response = restTemplate.exchange(
+                "/prisme/cpr/1/",
+                HttpMethod.POST,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertEquals(5, objectMapper.readTree(response.getBody()).size());
+
     }
 
     private void applyAccess(TestUserDetails testUserDetails) {
         when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
-    }
-
-    private void cleanup() {
-        Session session = sessionManager.getSessionFactory().openSession();
-        Transaction transaction = session.beginTransaction();
-        try {
-            for (Entity entity : createdEntities) {
-                session.delete(entity);
-            }
-            createdEntities.clear();
-        } finally {
-            try {
-                transaction.commit();
-            } catch (Exception e) {
-            } finally {
-                session.close();
-            }
-        }
     }
 
     @SpyBean

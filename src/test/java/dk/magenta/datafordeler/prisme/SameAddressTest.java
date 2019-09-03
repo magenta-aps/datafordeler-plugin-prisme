@@ -30,6 +30,7 @@ import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
 import org.hamcrest.CoreMatchers;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -59,8 +60,8 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@DirtiesContext(classMode= DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-public class SameAddressTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
+public class SameAddressTest extends TestBase {
 
     @Autowired
     private SessionManager sessionManager;
@@ -89,7 +90,11 @@ public class SameAddressTest {
     @Autowired
     private PersonOutputWrapperPrisme personOutputWrapper;
 
-    HashSet<Entity> createdEntities = new HashSet<>();
+    @After
+    public void cleanup() {
+        this.cleanupPersonData(sessionManager);
+        this.cleanupGladdrregData(sessionManager);
+    }
 
     public void loadPerson() throws Exception {
         InputStream testData = SameAddressTest.class.getResourceAsStream("/person.txt");
@@ -138,160 +143,71 @@ public class SameAddressTest {
         session.close();
     }
 
-    private void loadLocality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/locality.json");
-        LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
-        List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            LocalityRegistration localityRegistration = (LocalityRegistration) registration;
-            QueryManager.saveRegistration(session, localityRegistration.getEntity(), localityRegistration);
-            createdEntities.add(localityRegistration.getEntity());
-        }
-    }
-
-    private void loadRoad(Session session) throws DataFordelerException, IOException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/road.json");
-        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
-        List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            RoadRegistration roadRegistration = (RoadRegistration) registration;
-            QueryManager.saveRegistration(session, roadRegistration.getEntity(), roadRegistration);
-            createdEntities.add(roadRegistration.getEntity());
-        }
-    }
-
-    private void loadMunicipality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/municipality.json");
-        MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
-        List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            MunicipalityRegistration municipalityRegistration = (MunicipalityRegistration) registration;
-            QueryManager.saveRegistration(session, municipalityRegistration.getEntity(), municipalityRegistration);
-            createdEntities.add(municipalityRegistration.getEntity());
-        }
-    }
-
-    private void loadPostalCode(Session session) throws DataFordelerException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/postalcode.json");
-        PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
-        List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
-        for (Registration registration : regs) {
-            PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
-            QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
-            createdEntities.add(postalCodeRegistration.getEntity());
-        }
-    }
-
-    private void loadGladdrregData() throws IOException, DataFordelerException {
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            Transaction transaction = session.beginTransaction();
-            loadLocality(session);
-            loadRoad(session);
-            loadMunicipality(session);
-            loadPostalCode(session);
-            transaction.commit();
-        } finally {
-            session.close();
-        }
-    }
-
-
     @Test
     public void test3PersonPrisme() throws Exception {
         loadPerson();
-        loadGladdrregData();
+        this.loadGladdrregData(gladdrregPlugin, sessionManager);
 
-        try {
-            TestUserDetails testUserDetails = new TestUserDetails();
+        TestUserDetails testUserDetails = new TestUserDetails();
 
-            HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
 
-            testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
-            this.applyAccess(testUserDetails);
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "/prisme/sameaddress/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]}", response.getBody(), false);
-
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":955"));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":1"));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"housenumber\":\"5\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"floor\":\"1\""));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"door\":\"tv\""));
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/sameaddress/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
+        JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]}", response.getBody(), false);
+//"{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]}"
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":955"));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":1"));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"housenumber\":\"5\""));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"floor\":\"1\""));
+        Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"door\":\"tv\""));
 
 
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/sameaddress/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        testUserDetails.giveAccess(
+                cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                )
+        );
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/sameaddress/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
 
-            testUserDetails.giveAccess(
-                    cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
-                            CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
-                    ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
-                    )
-            );
-            this.applyAccess(testUserDetails);
-            response = restTemplate.exchange(
-                    "/prisme/sameaddress/1/" + "0101001234",
-                    HttpMethod.GET,
-                    httpEntity,
-                    String.class
-            );
-            Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
-            Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
-
-
-
-        } finally {
-            cleanup();
-        }
+        testUserDetails.giveAccess(
+                cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
+                        CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
+                ).getRestriction(
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                )
+        );
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/sameaddress/1/" + "0101001234",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
+        Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
     }
-
 
 
     private void applyAccess(TestUserDetails testUserDetails) {
         when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
-    }
-
-    private void cleanup() {
-        Session session = sessionManager.getSessionFactory().openSession();
-        Transaction transaction = session.beginTransaction();
-        try {
-            for (Entity entity : createdEntities) {
-                session.delete(entity);
-            }
-            createdEntities.clear();
-        } finally {
-            try {
-                transaction.commit();
-            } catch (Exception e) {
-            } finally {
-                session.close();
-            }
-        }
     }
 
 }
