@@ -24,7 +24,7 @@ import dk.magenta.datafordeler.cvr.access.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.query.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.records.*;
-import dk.magenta.datafordeler.cvr.records.unversioned.PostCode;
+import dk.magenta.datafordeler.cvr.records.unversioned.CvrPostCode;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
@@ -179,7 +179,7 @@ public class CvrRecordService {
         }
         ObjectNode requestObject = (ObjectNode) requestBody;
 
-        final OffsetDateTime updatedSince = requestObject.has(PARAM_UPDATED_SINCE) ? Query.parseDateTime(requestObject.get(PARAM_UPDATED_SINCE).asText()) : null;
+        final OffsetDateTime updatedSince = requestObject.has(PARAM_UPDATED_SINCE) ? Query.parseDateTime(requestObject.get(PARAM_UPDATED_SINCE).asText(), false) : null;
 
         final List<String> cvrNumbers = (requestObject.has(PARAM_CVR_NUMBER)) ? this.getCvrNumber(requestObject.get(PARAM_CVR_NUMBER)) : null;
 
@@ -362,7 +362,7 @@ public class CvrRecordService {
                 root.put("postboks", Integer.parseInt(addressRecord.getPostBox()));
             }
 
-            PostCode postCode = addressRecord.getPost();
+            CvrPostCode postCode = addressRecord.getPost();
             if (addressRecord.getPostnummer() != 0) {
                 root.put("postnummer", addressRecord.getPostnummer());
             }

@@ -10,7 +10,7 @@ import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.cpr.records.person.CprBitemporalPersonRecord;
 import dk.magenta.datafordeler.cvr.CollectiveCvrLookup;
 import dk.magenta.datafordeler.cvr.records.*;
-import dk.magenta.datafordeler.cvr.records.unversioned.PostCode;
+import dk.magenta.datafordeler.cvr.records.unversioned.CvrPostCode;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
@@ -327,7 +327,7 @@ public class CvrOutputWrapperPrisme extends OutputWrapper<CompanyRecord> {
                 root.put("postboks", Integer.parseInt(addressRecord.getPostBox()));
             }
 
-            PostCode postCode = addressRecord.getPost();
+            CvrPostCode postCode = addressRecord.getPost();
             if (addressRecord.getPostnummer() != 0) {
                 root.put("postnummer", addressRecord.getPostnummer());
             }
