@@ -18,18 +18,6 @@ import dk.magenta.datafordeler.cpr.data.person.PersonSubscription;
 import dk.magenta.datafordeler.cpr.data.person.PersonSubscriptionAssignmentStatus;
 import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
 import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
 import org.hamcrest.CoreMatchers;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
@@ -53,12 +41,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.StringJoiner;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
@@ -103,8 +88,8 @@ public class CprTest extends TestBase {
         this.cleanupGladdrregData(sessionManager);
     }
 
-    public void loadPerson() throws Exception {
-        InputStream testData = CprTest.class.getResourceAsStream("/person.txt");
+    public void loadPerson(String personfile) throws Exception {
+        InputStream testData = CprTest.class.getResourceAsStream(personfile);
         ImportMetadata importMetadata = new ImportMetadata();
         Session session = sessionManager.getSessionFactory().openSession();
         importMetadata.setSession(session);
@@ -189,7 +174,7 @@ public class CprTest extends TestBase {
 
     @Test
     public void test2PersonPrisme() throws Exception {
-        loadPerson();
+        loadPerson("/person.txt");
 
         HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
         ResponseEntity<String> response = restTemplate.exchange(
@@ -204,7 +189,7 @@ public class CprTest extends TestBase {
 
     @Test
     public void test3PersonPrisme() throws Exception {
-        loadPerson();
+        loadPerson("/person.txt");
 
         TestUserDetails testUserDetails = new TestUserDetails();
 
@@ -269,7 +254,7 @@ public class CprTest extends TestBase {
      */
     @Test
     public void test4PersonPrisme() throws Exception {
-        loadPerson();
+        loadPerson("/person.txt");
 
         TestUserDetails testUserDetails = new TestUserDetails();
 
@@ -447,7 +432,7 @@ public class CprTest extends TestBase {
         testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
         this.applyAccess(testUserDetails);
         ResponseEntity<String> response = restTemplate.exchange(
-                "/prisme/cpr/2/" + cpr,
+                "/prisme/cpr/combined/1/" + cpr,
                 HttpMethod.GET,
                 httpEntity,
                 String.class
@@ -499,7 +484,7 @@ public class CprTest extends TestBase {
         testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
         this.applyAccess(testUserDetails);
         ResponseEntity<String> response = restTemplate.exchange(
-                "/prisme/cpr/2/" + cpr,
+                "/prisme/cpr/combined/1/" + cpr,
                 HttpMethod.GET,
                 httpEntity,
                 String.class
@@ -546,14 +531,14 @@ public class CprTest extends TestBase {
         Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq("0607621234"));
         TestUserDetails testUserDetails = new TestUserDetails();
 
-        loadPerson();
+        loadPerson("/person.txt");
 
         HttpEntity<String> httpEntity = new HttpEntity<String>("{\"cprNumber\":[\"0101001234\",\"0607621234\"]}", new HttpHeaders());
 
         testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
         this.applyAccess(testUserDetails);
         ResponseEntity<String> response = restTemplate.postForEntity(
-                "/prisme/cpr/2/",
+                "/prisme/cpr/combined/1/",
                 httpEntity,
                 String.class
         );
@@ -608,6 +593,65 @@ public class CprTest extends TestBase {
             PersonSubscription subscription = existingSubscriptions.get(0);
             Assert.assertEquals("0607621234", subscription.getPersonNumber());
             Assert.assertEquals(PersonSubscriptionAssignmentStatus.CreatedInTable, subscription.getAssignment());
+        } finally {
+            session.close();
+        }
+    }
+
+    /**
+     * Validate that when a person is without address it finds the address direct, if the person is not dead it will also create subscribtion
+     * @throws Exception
+     */
+    @Test
+    public void testDirectLookup4() throws Exception {
+
+        loadPerson("/missingAddressperson.txt");
+
+        String cpr = "0101001235";
+        String data = "038406uKBKxWLcWUDI0178001104000000000000003840120190815000000000010607621234          90200502051034 M1962-07-06 2005-10-20                                              0030607621234Petersen,Mads Munk                                                                                                                                                                                                                          0080607621234Mads                                               Munk                                     Petersen                                 196207061029 Petersen,Mads Munk                00906076212345180                    01006076212345180196207061029*0110607621234U1962-07-06 0120607621234D0506650038                                              200502051034             01406076212340506871018014060762123405089210040140607621234060794106801406076212340705901007014060762123407059600110140607621234080789104901506076212341962-07-06*0000000000                                              1962-07-06*0000000000                                              999999999999900000014";
+
+        Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq(cpr));
+        TestUserDetails testUserDetails = new TestUserDetails();
+
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/combined/1/" + cpr,
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+
+        ObjectNode responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+
+        Assert.assertEquals("0607621234", responseObject.get("cprNummer").asText());
+
+        cpr = "0101001236";
+        Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq(cpr));
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/cpr/combined/1/" + cpr,
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+
+        responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+
+        Assert.assertEquals("0607621234", responseObject.get("cprNummer").asText());
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            List<PersonSubscription> existingSubscriptions = QueryManager.getAllItems(session, PersonSubscription.class);
+            Assert.assertEquals(1, existingSubscriptions.size());
+            PersonSubscription subscription = existingSubscriptions.get(0);
+            Assert.assertEquals("0101001235", subscription.getPersonNumber());
+            Assert.assertEquals(PersonSubscriptionAssignmentStatus.CreatedInTable, subscription.getAssignment());
+
         } finally {
             session.close();
         }
