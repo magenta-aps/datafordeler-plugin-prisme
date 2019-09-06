@@ -37,7 +37,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Lookup a householde with a cpr as input parameter, return all cpr's of persons living onb the same address, together with address information
+ * Lookup a householde with a cpr as input parameter, return all cpr's of persons living on the same address, together with address information
  */
 @RestController
 @RequestMapping("/prisme/sameaddress/1")
@@ -100,11 +100,13 @@ public class SameAddressService {
                 AddressDataRecord address = FilterUtilities.findNewestUnclosed(person.getAddress());
 
                 PersonRecordQuery personSameAddressQuery = new PersonRecordQuery();
+                personSameAddressQuery.setPageSize("30");
                 personSameAddressQuery.addKommunekode(address.getMunicipalityCode());
                 personSameAddressQuery.addVejkode(address.getRoadCode());
                 personSameAddressQuery.addHouseNo(address.getHouseNumber());
                 personSameAddressQuery.addDoor(address.getDoor());
                 personSameAddressQuery.addFloor(address.getFloor());
+                personSameAddressQuery.addBuildingNo(address.getBuildingNumber());
 
                 ArrayNode sameAddressCprs = objectMapper.createArrayNode();
 
@@ -124,6 +126,7 @@ public class SameAddressService {
                 root.put("housenumber", address.getHouseNumber());
                 root.put("floor", address.getFloor());
                 root.put("door", address.getDoor());
+                root.put("buildingNo", address.getBuildingNumber());
 
                 if (municipalityCode > 0 && lookupService != null) {
                     Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);

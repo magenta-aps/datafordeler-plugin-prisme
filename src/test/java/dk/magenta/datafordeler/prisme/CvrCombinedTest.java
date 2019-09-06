@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
-import dk.magenta.datafordeler.core.database.Entity;
 import dk.magenta.datafordeler.core.database.QueryManager;
 import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
@@ -38,9 +37,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runner.RunWith;
+import org.junit.runners.MethodSorters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
@@ -69,7 +68,8 @@ import static org.mockito.Mockito.when;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-public class CvrCombinedTest {
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+public class CvrCombinedTest extends TestBase {
 
     private Logger log = LogManager.getLogger(CvrCombinedTest.class.getCanonicalName());
 
@@ -97,140 +97,22 @@ public class CvrCombinedTest {
     @Autowired
     private GerPlugin gerPlugin;
 
-    @Autowired
-    private CvrRecordCombinedService combinedRecordService;
 
-    HashSet<Entity> createdEntities = new HashSet<>();
-
-
-    private void loadCompany() throws IOException, DataFordelerException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/company_in.json");
-        JsonNode root = objectMapper.readTree(testData);
-        testData.close();
-        JsonNode itemList = root.get("hits").get("hits");
-        Assert.assertTrue(itemList.isArray());
-        ImportMetadata importMetadata = new ImportMetadata();
-        for (JsonNode item : itemList) {
-            String source = objectMapper.writeValueAsString(item.get("_source").get("Vrvirksomhed"));
-            ByteArrayInputStream bais = new ByteArrayInputStream(source.getBytes("UTF-8"));
-            companyEntityManager.parseData(bais, importMetadata);
-            bais.close();
-        }
+    @After
+    public void cleanup() {
+        this.cleanupCompanyData(sessionManager);
+        this.cleanupGladdrregData(sessionManager);
     }
 
-    private void loadGerCompany() throws IOException, DataFordelerException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/GER.test.xlsx");
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            dk.magenta.datafordeler.ger.data.company.CompanyEntityManager companyEntityManager = (dk.magenta.datafordeler.ger.data.company.CompanyEntityManager) gerPlugin.getRegisterManager().getEntityManager(CompanyEntity.schema);
-            ImportMetadata importMetadata = new ImportMetadata();
-            importMetadata.setSession(session);
-            companyEntityManager.parseData(testData, importMetadata);
-        } finally {
-            session.close();
-            testData.close();
-        }
-    }
 
-    private void loadGerParticipant() throws IOException, DataFordelerException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/GER.test.xlsx");
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntityManager responsibleEntityManager = (dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntityManager) gerPlugin.getRegisterManager().getEntityManager(ResponsibleEntity.schema);
-            ImportMetadata importMetadata = new ImportMetadata();
-            importMetadata.setSession(session);
-            responsibleEntityManager.parseData(testData, importMetadata);
-        } finally {
-            session.close();
-            testData.close();
-        }
-    }
-
-    public void loadManyCompanies(int count) throws Exception {
-        this.loadManyCompanies(count, 0);
-    }
-
-    public void loadManyCompanies(int count, int start) throws Exception {
-        ImportMetadata importMetadata = new ImportMetadata();
-        String testData = InputStreamReader.readInputStream(CvrCombinedTest.class.getResourceAsStream("/company_in.json"));
-        for (int i = start; i < count + start; i++) {
-            String altered = testData.replaceAll("25052943", "1" + String.format("%07d", i)).replaceAll("\n", "");
-            ByteArrayInputStream bais = new ByteArrayInputStream(altered.getBytes("UTF-8"));
-            companyEntityManager.parseData(bais, importMetadata);
-            bais.close();
-        }
-    }
-
-    private void loadLocality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/locality.json");
-        LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
-        List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            LocalityRegistration localityRegistration = (LocalityRegistration) registration;
-            QueryManager.saveRegistration(session, localityRegistration.getEntity(), localityRegistration);
-            createdEntities.add(localityRegistration.getEntity());
-        }
-    }
-
-    private void loadRoad(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/road.json");
-        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
-        List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            RoadRegistration roadRegistration = (RoadRegistration) registration;
-            QueryManager.saveRegistration(session, roadRegistration.getEntity(), roadRegistration);
-            createdEntities.add(roadRegistration.getEntity());
-        }
-    }
-
-    private void loadMunicipality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/municipality.json");
-        MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
-        List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            MunicipalityRegistration municipalityRegistration = (MunicipalityRegistration) registration;
-            QueryManager.saveRegistration(session, municipalityRegistration.getEntity(), municipalityRegistration);
-            createdEntities.add(municipalityRegistration.getEntity());
-        }
-    }
-
-    private void loadPostalcode(Session session) throws DataFordelerException, IOException {
-        InputStream testData = CvrCombinedTest.class.getResourceAsStream("/postalcode.json");
-        PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
-        List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
-            QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
-            createdEntities.add(postalCodeRegistration.getEntity());
-        }
-    }
-
-    private void loadGladdrregData() throws IOException, DataFordelerException {
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            Transaction transaction = session.beginTransaction();
-            loadLocality(session);
-            loadRoad(session);
-            loadMunicipality(session);
-            loadPostalcode(session);
-            transaction.commit();
-        } finally {
-            session.close();
-        }
-    }
 
     @Test
     public void testCompanyPrisme() throws IOException, DataFordelerException {
-        this.loadGerCompany();
-        this.loadGerParticipant();
-        loadGladdrregData();
-        loadCompany();
+        this.loadGerCompany(gerPlugin, sessionManager);
+        this.loadGerParticipant(gerPlugin, sessionManager);
+        this.loadGladdrregData(gladdrregPlugin, sessionManager);
+        this.loadCompany(cvrPlugin, sessionManager, objectMapper);
 
-        try {
 
             TestUserDetails testUserDetails = new TestUserDetails();
 
@@ -297,9 +179,6 @@ public class CvrCombinedTest {
                     String.class
             );
             Assert.assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        } finally {
-            cleanup();
-        }
     }
 
 
@@ -307,9 +186,10 @@ public class CvrCombinedTest {
     @Test
     public void testGerFallback() throws IOException, DataFordelerException {
         TestUserDetails testUserDetails = new TestUserDetails();
-        this.loadGerCompany();
-        this.loadGerParticipant();
-        this.loadGladdrregData();
+        this.loadGerCompany(gerPlugin, sessionManager);
+        this.loadGerParticipant(gerPlugin, sessionManager);
+        this.loadGladdrregData(gladdrregPlugin, sessionManager);
+
         testUserDetails.giveAccess(
                 cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                         CvrAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
@@ -336,17 +216,16 @@ public class CvrCombinedTest {
     public void testCompanyBulkPrisme() throws Exception {
 
         OffsetDateTime start = OffsetDateTime.now();
-        loadManyCompanies(5, 0);
+        loadManyCompanies(cvrPlugin, sessionManager, 5, 0);
         OffsetDateTime middle = OffsetDateTime.now();
         Thread.sleep(10);
-        loadManyCompanies(5, 5);
+        loadManyCompanies(cvrPlugin, sessionManager, 5, 5);
 
         OffsetDateTime companyUpdate = OffsetDateTime.parse("2017-04-10T09:01:06.000+02:00");
 
-        loadGladdrregData();
+        loadGladdrregData(gladdrregPlugin, sessionManager);
         OffsetDateTime afterLoad = OffsetDateTime.now();
 
-        try {
             TestUserDetails testUserDetails = new TestUserDetails();
 
 
@@ -461,34 +340,10 @@ public class CvrCombinedTest {
             log.debug(response.getBody());
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertEquals(0, objectMapper.readTree(response.getBody()).size());
-
-            } finally {
-            cleanup();
-        }
     }
 
     private void applyAccess(TestUserDetails testUserDetails) {
         when(dafoUserManager.getFallbackUser()).thenReturn(testUserDetails);
-    }
-
-    private void cleanup() {
-        Session session = sessionManager.getSessionFactory().openSession();
-        Transaction transaction = session.beginTransaction();
-        try {
-            for (Entity entity : createdEntities) {
-                try {
-                    session.delete(entity);
-                } catch (Exception e) {}
-            }
-            createdEntities.clear();
-        } finally {
-            try {
-                transaction.commit();
-            } catch (Exception e) {
-            } finally {
-                session.close();
-            }
-        }
     }
 
 }
