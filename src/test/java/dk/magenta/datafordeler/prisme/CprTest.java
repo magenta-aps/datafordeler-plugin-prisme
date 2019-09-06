@@ -623,9 +623,7 @@ public class CprTest extends TestBase {
                 httpEntity,
                 String.class
         );
-
         ObjectNode responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
-
         Assert.assertEquals("0607621234", responseObject.get("cprNummer").asText());
 
         cpr = "0101001236";
@@ -639,10 +637,20 @@ public class CprTest extends TestBase {
                 httpEntity,
                 String.class
         );
-
         responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
-
         Assert.assertEquals("0607621234", responseObject.get("cprNummer").asText());
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        response = restTemplate.exchange(
+                "/prisme/cpr/combined/1/" + cpr + "?forceDirect=true",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+        Assert.assertEquals("0607621234", responseObject.get("cprNummer").asText());
+
 
         Session session = sessionManager.getSessionFactory().openSession();
         try {

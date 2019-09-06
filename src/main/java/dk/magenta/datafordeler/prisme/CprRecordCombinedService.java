@@ -29,10 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import javax.annotation.PostConstruct;
@@ -79,12 +76,12 @@ public class CprRecordCombinedService {
 
     @PostConstruct
     public void init() {
-        this.monitorService.addAccessCheckPoint("/prisme/cpr/2/1234");
-        this.monitorService.addAccessCheckPoint("POST", "/prisme/cpr/2/", "{}");
+        this.monitorService.addAccessCheckPoint("/prisme/cpr/combined/1/1234");
+        this.monitorService.addAccessCheckPoint("POST", "/prisme/cpr/combined/1/", "{}");
     }
 
     @RequestMapping(method = RequestMethod.GET, path = "/{cprNummer}", produces = {MediaType.APPLICATION_JSON_VALUE})
-    public String getSingle(@PathVariable("cprNummer") String cprNummer, HttpServletRequest request)
+    public String getSingle(@PathVariable("cprNummer") String cprNummer, @RequestParam(value="forceDirect",required=false) String forceDirect, HttpServletRequest request)
             throws AccessDeniedException, AccessRequiredException, InvalidTokenException, InvalidClientInputException, JsonProcessingException, HttpNotFoundException, InvalidCertificateException {
 
         DafoUserDetails user = dafoUserManager.getUserFromRequest(request);
@@ -109,6 +106,11 @@ public class CprRecordCombinedService {
 
             personQuery.applyFilters(session);
             this.applyAreaRestrictionsToQuery(personQuery, user);
+            if ("true".equals(forceDirect)) {
+                PersonEntity personEntity = cprDirectLookup.getPerson(cprNummer);
+                Object obj = personOutputWrapper.wrapRecordResult(personEntity, personQuery);
+                return streamPersonOut(user, obj);
+            }
 
             List<PersonEntity> personEntities = QueryManager.getAllEntities(session, personQuery, PersonEntity.class);
             if (personEntities.isEmpty()) {
