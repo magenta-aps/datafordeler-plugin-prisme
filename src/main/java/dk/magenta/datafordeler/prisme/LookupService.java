@@ -29,7 +29,7 @@ import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeQuery;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadData;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEffect;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
+import dk.magenta.datafordeler.gladdrreg.data.road.GladdrregRoadEntity;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadQuery;
 import org.hibernate.Session;
 
@@ -85,7 +85,7 @@ public class LookupService {
                         if (lookup.municipalityName != null) break;
                     }
 
-                    RoadEntity roadEntity = this.getRoadGR(session, municipalityEntity, roadCode);
+                    GladdrregRoadEntity roadEntity = this.getRoadGR(session, municipalityEntity, roadCode);
                     if (roadEntity == null) {
                         this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
                     } else {
@@ -280,19 +280,19 @@ public class LookupService {
         return null;
     }
 
-    private RoadEntity getRoadGR(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
+    private GladdrregRoadEntity getRoadGR(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
         try {
             RoadQuery roadQuery = new RoadQuery();
             roadQuery.setCode(Integer.toString(roadCode));
             roadQuery.setMunicipalityIdentifier(municipalityEntity.getUUID().toString());
-            List<RoadEntity> roadEntities = QueryManager.getAllEntities(session, roadQuery, RoadEntity.class);
+            List<GladdrregRoadEntity> roadEntities = QueryManager.getAllEntities(session, roadQuery, GladdrregRoadEntity.class);
             return roadEntities.get(0);
         } catch (IndexOutOfBoundsException | NullPointerException e) {
         }
         return null;
     }
 
-    private AddressEntity getAddressGR(Session session, RoadEntity roadEntity, String houseNumber) {
+    private AddressEntity getAddressGR(Session session, GladdrregRoadEntity roadEntity, String houseNumber) {
         try {
             AddressQuery addressQuery = new AddressQuery();
             addressQuery.setRoad(roadEntity.getUUID().toString());
@@ -320,7 +320,7 @@ public class LookupService {
         return null;
     }
 
-    private LocalityEntity getLocalityGR(Session session, RoadEntity roadEntity) {
+    private LocalityEntity getLocalityGR(Session session, GladdrregRoadEntity roadEntity) {
         OffsetDateTime now = OffsetDateTime.now();
         for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
             for (RoadData roadData : roadEffect.getDataItems()) {
