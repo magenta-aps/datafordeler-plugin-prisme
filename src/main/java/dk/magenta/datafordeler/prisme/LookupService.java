@@ -1,5 +1,7 @@
 package dk.magenta.datafordeler.prisme;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.DataItem;
 import dk.magenta.datafordeler.core.database.Identification;
 import dk.magenta.datafordeler.core.database.QueryManager;
@@ -29,7 +31,7 @@ import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
 import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeQuery;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadData;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadEffect;
-import dk.magenta.datafordeler.gladdrreg.data.road.GladdrregRoadEntity;
+import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
 import dk.magenta.datafordeler.gladdrreg.data.road.RoadQuery;
 import org.hibernate.Session;
 
@@ -37,6 +39,7 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,7 +88,7 @@ public class LookupService {
                         if (lookup.municipalityName != null) break;
                     }
 
-                    GladdrregRoadEntity roadEntity = this.getRoadGR(session, municipalityEntity, roadCode);
+                    RoadEntity roadEntity = this.getRoadGR(session, municipalityEntity, roadCode);
                     if (roadEntity == null) {
                         this.populateRoadDK(lookup, session, municipalityCode, roadCode, houseNumber);
                     } else {
@@ -280,19 +283,19 @@ public class LookupService {
         return null;
     }
 
-    private GladdrregRoadEntity getRoadGR(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
+    private RoadEntity getRoadGR(Session session, MunicipalityEntity municipalityEntity, int roadCode) {
         try {
             RoadQuery roadQuery = new RoadQuery();
             roadQuery.setCode(Integer.toString(roadCode));
             roadQuery.setMunicipalityIdentifier(municipalityEntity.getUUID().toString());
-            List<GladdrregRoadEntity> roadEntities = QueryManager.getAllEntities(session, roadQuery, GladdrregRoadEntity.class);
+            List<RoadEntity> roadEntities = QueryManager.getAllEntities(session, roadQuery, RoadEntity.class);
             return roadEntities.get(0);
         } catch (IndexOutOfBoundsException | NullPointerException e) {
         }
         return null;
     }
 
-    private AddressEntity getAddressGR(Session session, GladdrregRoadEntity roadEntity, String houseNumber) {
+    private AddressEntity getAddressGR(Session session, RoadEntity roadEntity, String houseNumber) {
         try {
             AddressQuery addressQuery = new AddressQuery();
             addressQuery.setRoad(roadEntity.getUUID().toString());
@@ -320,7 +323,7 @@ public class LookupService {
         return null;
     }
 
-    private LocalityEntity getLocalityGR(Session session, GladdrregRoadEntity roadEntity) {
+    private LocalityEntity getLocalityGR(Session session, RoadEntity roadEntity) {
         OffsetDateTime now = OffsetDateTime.now();
         for (RoadEffect roadEffect : roadEntity.getRegistrationAt(now).getEffectsAt(now)) {
             for (RoadData roadData : roadEffect.getDataItems()) {
