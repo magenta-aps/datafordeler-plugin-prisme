@@ -109,6 +109,7 @@ public class CprRecordService {
                 PersonEntity personEntity = personEntities.get(0);
                 return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
             }
+
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         } finally {
             session.close();
