@@ -114,8 +114,11 @@ public class CprRecordCombinedService {
 
             List<PersonEntity> personEntities = QueryManager.getAllEntities(session, personQuery, PersonEntity.class);
             if (personEntities.isEmpty()) {
-                entityManager.createSubscription(Collections.singleton(cprNummer));
                 PersonEntity personEntity = cprDirectLookup.getPerson(cprNummer);
+                if(personEntity==null) {
+                    throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
+                }
+                entityManager.createSubscription(Collections.singleton(cprNummer));
                 Object obj = personOutputWrapper.wrapRecordResult(personEntity, personQuery);
                 return streamPersonOut(user, obj);
             }
@@ -131,8 +134,11 @@ public class CprRecordCombinedService {
                     obj = personOutputWrapper.wrapRecordResult(personEntity, personQuery);
                     return streamPersonOut(user, obj);
                 case needSubscribtionAndDirectLookup:
-                    entityManager.createSubscription(Collections.singleton(cprNummer));
                     personEntity = cprDirectLookup.getPerson(cprNummer);
+                    if(personEntity==null) {
+                        throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
+                    }
+                    entityManager.createSubscription(Collections.singleton(cprNummer));
                     obj = personOutputWrapper.wrapRecordResult(personEntity, personQuery);
                     return streamPersonOut(user, obj);
                 default:
@@ -140,7 +146,7 @@ public class CprRecordCombinedService {
             }
         } catch(DataStreamException e) {
             log.error(e);
-            return null;
+            throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
         }
     }
 

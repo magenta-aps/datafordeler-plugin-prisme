@@ -667,4 +667,44 @@ public class CprTest extends TestBase {
             session.close();
         }
     }
+
+
+
+    /**
+     * Validate that when a person is without address it finds the address direct, if the person is not dead it will also create subscribtion
+     * @throws Exception
+     */
+    @Test
+    public void testDirectLookup5() throws Exception {
+
+        loadPerson("/missingAddressperson.txt");
+
+        String cpr = "0101001235";
+        String data = "038406uKBKxWLcWUDI0178001104000000000000003840120190815000000000010607621235          90200502051034 M1962-07-06 2005-10-20                                              0030607621235Petersen,Mads Munk                                                                                                                                                                                                                          0080607621235Mads                                               Munk                                     Petersen                                 196207061029 Petersen,Mads Munk                00906076212355180                    01006076212355180196207061029*0110607621234U1962-07-06 0120607621234D0506650038                                              200502051034             01406076212340506871018014060762123405089210040140607621234060794106801406076212340705901007014060762123407059600110140607621235080789104901506076212341962-07-06*0000000000                                              1962-07-06*0000000000                                              999999999999900000014";
+
+        Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq("0101001235"));
+        TestUserDetails testUserDetails = new TestUserDetails();
+
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", new HttpHeaders());
+
+        testUserDetails.giveAccess(CprRolesDefinition.READ_CPR_ROLE);
+        this.applyAccess(testUserDetails);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/prisme/cpr/combined/1/1111111111",
+                HttpMethod.GET,
+                httpEntity,
+                String.class
+        );
+        ObjectNode responseObject = (ObjectNode) objectMapper.readTree(response.getBody());
+        Assert.assertEquals("404", responseObject.get("status").asText());
+
+
+        Session session = sessionManager.getSessionFactory().openSession();
+        try {
+            List<PersonSubscription> existingSubscriptions = QueryManager.getAllItems(session, PersonSubscription.class);
+            Assert.assertEquals(0, existingSubscriptions.size());
+        } finally {
+            session.close();
+        }
+    }
 }
