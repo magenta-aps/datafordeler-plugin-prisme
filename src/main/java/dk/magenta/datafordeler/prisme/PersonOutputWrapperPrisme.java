@@ -8,6 +8,8 @@ import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.records.person.CprBitemporalPersonRecord;
 import dk.magenta.datafordeler.cpr.records.person.data.*;
+import dk.magenta.datafordeler.geo.GeoLookupDTO;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -23,9 +25,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private LookupService lookupService;
+    private GeoLookupService lookupService;
 
-    public void setLookupService(LookupService lookupService) {
+    public void setLookupService(GeoLookupService lookupService) {
         this.lookupService = lookupService;
     }
 
@@ -157,12 +159,12 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 if (roadCode > 0) {
                     root.put("vejkode", roadCode);
 
-                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
+                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
 
-                    root.put("kommune", lookup.municipalityName);
+                    root.put("kommune", lookup.getMunicipalityName());
 
                     String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
-                    String roadName = lookup.roadName;
+                    String roadName = lookup.getRoadName();
 
                     if (roadName != null) {
                         root.put("adresse", this.getAddressFormatted(
@@ -178,9 +180,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                         root.put("adresse", formatBNumber(buildingNumber));
                     }
 
-                    root.put("postnummer", lookup.postalCode);
-                    root.put("bynavn", lookup.postalDistrict);
-                    root.put("stedkode", lookup.localityCode);
+                    root.put("postnummer", lookup.getPostalCode());
+                    root.put("bynavn", lookup.getPostalDistrict());
+                    root.put("stedkode", lookup.getLocalityCode());
                 }
 
                 if (municipalityCode > 0 && municipalityCode < 900) {

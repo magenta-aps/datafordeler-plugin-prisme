@@ -25,6 +25,8 @@ import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.query.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.records.*;
 import dk.magenta.datafordeler.cvr.records.unversioned.CvrPostCode;
+import dk.magenta.datafordeler.geo.GeoLookupDTO;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
@@ -125,7 +127,7 @@ public class CvrRecordService {
         cvrNumbers.add(cvrNummer);
 
         Session session = sessionManager.getSessionFactory().openSession();
-        LookupService service = new LookupService(session);
+        GeoLookupService service = new GeoLookupService(session);
         try {
             ObjectNode formattedRecord = null;
 
@@ -219,7 +221,7 @@ public class CvrRecordService {
             public void writeTo(OutputStream outputStream) throws IOException {
                 Session session = sessionManager.getSessionFactory().openSession();
                 List<CompanyRecord> records = QueryManager.getAllEntities(session, query, CompanyRecord.class);
-                LookupService lookupService = new LookupService(session);
+                GeoLookupService lookupService = new GeoLookupService(session);
                 try {
                     boolean first = true;
                     outputStream.write(START_OBJECT);
@@ -275,7 +277,7 @@ public class CvrRecordService {
         return cvrNumbers;
     }
 
-    protected ObjectNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
+    protected ObjectNode wrapRecord(CompanyRecord record, GeoLookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
         root.put("source", "CVR");
@@ -323,9 +325,9 @@ public class CvrRecordService {
             if (roadCode > 0) {
                 root.put("vejkode", roadCode);
                 if (municipalityCode > 0 && lookupService != null) {
-                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
-                    if (lookup.localityCode != 0) {
-                        root.put("stedkode", lookup.localityCode);
+                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode);
+                    if (lookup.getLocalityCode() != null) {
+                        root.put("stedkode", lookup.getLocalityCode());
                     }
                 }
             }
@@ -504,7 +506,7 @@ public class CvrRecordService {
     }
 
 
-    protected ObjectNode wrapGerCompany(CompanyEntity entity, LookupService lookupService, boolean returnParticipantDetails) {
+    protected ObjectNode wrapGerCompany(CompanyEntity entity, GeoLookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("source", "GER");
         root.put("cvrNummer", entity.getGerNr());

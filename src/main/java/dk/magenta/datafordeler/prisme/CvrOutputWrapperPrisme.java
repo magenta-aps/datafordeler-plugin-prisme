@@ -11,6 +11,8 @@ import dk.magenta.datafordeler.cpr.records.person.CprBitemporalPersonRecord;
 import dk.magenta.datafordeler.cvr.CollectiveCvrLookup;
 import dk.magenta.datafordeler.cvr.records.*;
 import dk.magenta.datafordeler.cvr.records.unversioned.CvrPostCode;
+import dk.magenta.datafordeler.geo.GeoLookupDTO;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleQuery;
@@ -33,9 +35,9 @@ public class CvrOutputWrapperPrisme extends OutputWrapper<CompanyRecord> {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private LookupService lookupService;
+    private GeoLookupService lookupService;
 
-    public void setLookupService(LookupService lookupService) {
+    public void setLookupService(GeoLookupService lookupService) {
         this.lookupService = lookupService;
     }
 
@@ -112,7 +114,7 @@ public class CvrOutputWrapperPrisme extends OutputWrapper<CompanyRecord> {
 
 
 
-    protected ObjectNode wrapGerCompany(CompanyEntity entity, LookupService lookupService, boolean returnParticipantDetails) {
+    protected ObjectNode wrapGerCompany(CompanyEntity entity, GeoLookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("source", "GER");
         root.put("cvrNummer", entity.getGerNr());
@@ -240,7 +242,7 @@ public class CvrOutputWrapperPrisme extends OutputWrapper<CompanyRecord> {
 
 
 
-    protected ObjectNode wrapRecord(CompanyRecord record, LookupService lookupService, boolean returnParticipantDetails) {
+    protected ObjectNode wrapRecord(CompanyRecord record, GeoLookupService lookupService, boolean returnParticipantDetails) {
         ObjectNode root = objectMapper.createObjectNode();
 
         root.put("source", "CVR");
@@ -288,9 +290,9 @@ public class CvrOutputWrapperPrisme extends OutputWrapper<CompanyRecord> {
             if (roadCode > 0) {
                 root.put("vejkode", roadCode);
                 if (municipalityCode > 0 && lookupService != null) {
-                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
-                    if (lookup.localityCode != 0) {
-                        root.put("stedkode", lookup.localityCode);
+                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode);
+                    if (lookup.getLocalityCode() != null) {
+                        root.put("stedkode", lookup.getLocalityCode());
                     }
                 }
             }
