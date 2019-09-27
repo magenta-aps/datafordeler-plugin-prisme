@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
-import dk.magenta.datafordeler.core.database.Entity;
 import dk.magenta.datafordeler.core.database.QueryManager;
-import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
@@ -20,7 +18,9 @@ import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonSubscription;
 import dk.magenta.datafordeler.cpr.data.person.PersonSubscriptionAssignmentStatus;
 import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
-import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
+import dk.magenta.datafordeler.geo.GeoLookupService;
+import dk.magenta.datafordeler.geo.GeoPlugin;
+
 import org.hamcrest.CoreMatchers;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
@@ -65,9 +65,6 @@ public class CprTest extends TestBase {
     private PersonEntityManager personEntityManager;
 
     @Autowired
-    private GladdrregPlugin gladdrregPlugin;
-
-    @Autowired
     private TestRestTemplate restTemplate;
 
     @Autowired
@@ -88,7 +85,7 @@ public class CprTest extends TestBase {
     @After
     public void cleanup() {
         this.cleanupPersonData(sessionManager);
-        this.cleanupGladdrregData(sessionManager);
+        this.cleanupGeoData(sessionManager);
     }
 
     public void loadPerson(String personfile) throws Exception {
@@ -135,7 +132,7 @@ public class CprTest extends TestBase {
 
     @Before
     public void load() throws IOException, DataFordelerException {
-        this.loadGladdrregData(gladdrregPlugin, sessionManager);
+        this.loadAllGeoAdress(sessionManager);
     }
 
     private static void transfer(ObjectNode from, ObjectNode to, String field) {
@@ -150,7 +147,7 @@ public class CprTest extends TestBase {
     public void test1PersonRecordOutput() throws Exception {
 
         Session session = sessionManager.getSessionFactory().openSession();
-        LookupService lookupService = new LookupService(session);
+        GeoLookupService lookupService = new GeoLookupService(session);
         personOutputWrapper.setLookupService(lookupService);
         try {
             String ENTITY = "e";
