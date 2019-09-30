@@ -211,7 +211,7 @@ public class CprTest extends TestBase {
                 cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                         CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
                 ).getRestriction(
-                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_AVANNAATA
                 )
         );
         this.applyAccess(testUserDetails);
@@ -227,7 +227,7 @@ public class CprTest extends TestBase {
                 cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                         CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
                 ).getRestriction(
-                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
                 )
         );
         this.applyAccess(testUserDetails);
@@ -278,7 +278,7 @@ public class CprTest extends TestBase {
                 cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                         CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
                 ).getRestriction(
-                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                        CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
                 )
         );
         this.applyAccess(testUserDetails);
@@ -423,7 +423,7 @@ public class CprTest extends TestBase {
     public void testDirectLookup1() throws Exception {
 
         String cpr = "0707611234";
-        String data = "038406fJrr7CCxWUDI0178001590000000000000003840120190808000000000010707611234          01000000000000 M1961-07-07 1961-07-07*           Socialrådg.                       002070761123409550001101 01  mf                                      198010102000 196107071034 0000000000000000                                                                                                                                                                                                   0030707611234Mortensen,Jens                                                                                        Boulevarden 101,1 mf                                                6800Varde               05735731101 01  mf    Boulevarden         0080707611234Jens                                                                                        Mortensen                                196107072000 Mortensen,Jens                    00907076112345150                    01007076112345100199103201299*0110707611234F1961-07-07*0120707611234F0706611234                                              198010012000             014070761123413018140770140707611234131281123401507076112341961-07-07*0912414434                                              1961-07-07*0909414385                                              01707076112342019-04-10*          0002                    Terd                              2019-04-10grd                                                                                                                                                                       999999999999900000012";
+        String data = "038406fJrr7CCxWUDI0178001590000000000000003840120190808000000000010707611234          01000000000000 M1961-07-07 1961-07-07*           Socialrådg.                       002070761123409560254018 01  mf                                      198010102000 196107071034 0000000000000000                                                                                                                                                                                                   0030707611234Mortensen,Jens                                                                                        Boulevarden 101,1 mf                                                6800Varde               05735731101 01  mf    Boulevarden         0080707611234Jens                                                                                        Mortensen                                196107072000 Mortensen,Jens                    00907076112345150                    01007076112345100199103201299*0110707611234F1961-07-07*0120707611234F0706611234                                              198010012000             014070761123413018140770140707611234131281123401507076112341961-07-07*0912414434                                              1961-07-07*0909414385                                              01707076112342019-04-10*          0002                    Terd                              2019-04-10grd                                                                                                                                                                       999999999999900000012";
         Mockito.doReturn(data).when(cprDirectLookup).lookup(ArgumentMatchers.eq(cpr));
         TestUserDetails testUserDetails = new TestUserDetails();
 
@@ -451,10 +451,10 @@ public class CprTest extends TestBase {
         Assert.assertEquals("0912414434", responseObject.get("mor").asText());
         Assert.assertEquals(1, responseObject.get("statuskode").asInt());
         Assert.assertEquals("1980-10-10", responseObject.get("tilflytningsdato").asText());
-        Assert.assertEquals(955, responseObject.get("myndighedskode").asInt());
-        Assert.assertEquals(1, responseObject.get("vejkode").asInt());
-        Assert.assertEquals(3982, responseObject.get("postnummer").asInt());
-        Assert.assertEquals(500, responseObject.get("stedkode").asInt());
+        Assert.assertEquals(956, responseObject.get("myndighedskode").asInt());
+        Assert.assertEquals(254, responseObject.get("vejkode").asInt());
+        Assert.assertEquals(3900, responseObject.get("postnummer").asInt());
+        Assert.assertEquals(600, responseObject.get("stedkode").asInt());
         Assert.assertEquals("GL", responseObject.get("landekode").asText());
 
         Session session = sessionManager.getSessionFactory().openSession();
@@ -580,10 +580,10 @@ public class CprTest extends TestBase {
         Assert.assertEquals("0101641234", personObject.get("far").asText());
         Assert.assertEquals("2903641234", personObject.get("mor").asText());
         Assert.assertEquals("2016-08-31", personObject.get("tilflytningsdato").asText());
-        Assert.assertEquals(955, personObject.get("myndighedskode").asInt());
-        Assert.assertEquals(1, personObject.get("vejkode").asInt());
-        Assert.assertEquals(3982, personObject.get("postnummer").asInt());
-        Assert.assertEquals(500, personObject.get("stedkode").asInt());
+        Assert.assertEquals(956, personObject.get("myndighedskode").asInt());
+        Assert.assertEquals(254, personObject.get("vejkode").asInt());
+        Assert.assertEquals(3900, personObject.get("postnummer").asInt());
+        Assert.assertEquals(600, personObject.get("stedkode").asInt());
         Assert.assertEquals("GL", personObject.get("landekode").asText());
 
         Session session = sessionManager.getSessionFactory().openSession();
