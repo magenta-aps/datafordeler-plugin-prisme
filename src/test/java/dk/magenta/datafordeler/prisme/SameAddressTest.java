@@ -41,6 +41,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -58,7 +59,8 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = Application.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class SameAddressTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
+public class SameAddressTest extends TestBase {
 
     @Autowired
     private SessionManager sessionManager;
@@ -200,8 +202,9 @@ public class SameAddressTest {
 
     @Test
     public void test3PersonPrisme() throws Exception {
-        loadPerson();
         loadGladdrregData();
+        loadPerson();
+
 
         try {
             TestUserDetails testUserDetails = new TestUserDetails();
@@ -219,7 +222,7 @@ public class SameAddressTest {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001234\",\"0101001235\",\"0101001236\"]}", response.getBody(), false);
+            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"buildingNo\":\"1234\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001242\",\"0101001243\",\"0101001244\",\"0101001234\",\"0101001235\",\"0101001236\",\"0101001237\",\"0101001238\",\"0101001239\",\"0101001240\",\"0101001241\",\"0101001245\",\"0101001246\",\"0101001247\",\"0101001248\",\"0101001249\",\"0101001251\"]}", response.getBody(), false);
 
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":955"));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":1"));
