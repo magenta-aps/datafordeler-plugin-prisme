@@ -451,6 +451,7 @@ public class CprTest extends TestBase {
         Assert.assertEquals("0912414434", responseObject.get("mor").asText());
         Assert.assertEquals(1, responseObject.get("statuskode").asInt());
         Assert.assertEquals("1980-10-10", responseObject.get("tilflytningsdato").asText());
+        Assert.assertEquals("Kommuneqarfik Sermersooq", responseObject.get("kommune").asText());
         Assert.assertEquals(956, responseObject.get("myndighedskode").asInt());
         Assert.assertEquals(254, responseObject.get("vejkode").asInt());
         Assert.assertEquals(3900, responseObject.get("postnummer").asInt());
@@ -582,6 +583,7 @@ public class CprTest extends TestBase {
         Assert.assertEquals("2016-08-31", personObject.get("tilflytningsdato").asText());
         Assert.assertEquals(956, personObject.get("myndighedskode").asInt());
         Assert.assertEquals(254, personObject.get("vejkode").asInt());
+        Assert.assertEquals("Kommuneqarfik Sermersooq", responseObject.get("kommune").asText());
         Assert.assertEquals(3900, personObject.get("postnummer").asInt());
         Assert.assertEquals(600, personObject.get("stedkode").asInt());
         Assert.assertEquals("GL", personObject.get("landekode").asText());
