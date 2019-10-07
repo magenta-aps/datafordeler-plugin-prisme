@@ -178,7 +178,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                                 buildingNumber
                         ));
                     } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
-                        root.put("adresse", formatBNumber(buildingNumber));
+                        root.put("adresse", buildingNumber);
                     }
 
                     root.put("postnummer", lookup.getPostalCode());
@@ -288,7 +288,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         }
 
         if (bNumber != null && !bNumber.isEmpty()) {
-            out.append(" (" + formatBNumber(bNumber) + ")");
+            out.append(" (" + bNumber + ")");
         }
 
         String result = out.toString().trim();
@@ -297,12 +297,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         } else {
             return result;
         }
-    }
-
-    private static String formatBNumber(String bnr) {
-        bnr = bnr.replaceAll("^0+", "");
-        bnr = bnr.replaceAll("^B-?", "");
-        return "B-" + bnr;
     }
 
     private String emptyIfNull(String text) {
