@@ -21,6 +21,7 @@ import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
@@ -86,9 +87,8 @@ public class CprService {
         );
         this.checkAndLogAccess(loggerHelper);
 
-        final Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            LookupService lookupService = new LookupService(session);
+        try(final Session session = sessionManager.getSessionFactory().openSession();) {
+            GeoLookupService lookupService = new GeoLookupService(session);
             personOutputWrapper.setLookupService(lookupService);
 
             PersonRecordQuery personQuery = new PersonRecordQuery();
@@ -110,8 +110,6 @@ public class CprService {
                 return objectMapper.writeValueAsString(personOutputWrapper.wrapRecordResult(personEntity, personQuery));
             }
             throw new HttpNotFoundException("No entity with CPR number " + cprNummer + " was found");
-        } finally {
-            session.close();
         }
     }
 
@@ -175,7 +173,7 @@ public class CprService {
             public void writeTo(OutputStream outputStream) throws IOException {
 
                 final Session lookupSession = sessionManager.getSessionFactory().openSession();
-                LookupService lookupService = new LookupService(lookupSession);
+                GeoLookupService lookupService = new GeoLookupService(lookupSession);
                 personOutputWrapper.setLookupService(lookupService);
 
                 final Session entitySession = sessionManager.getSessionFactory().openSession();
