@@ -151,7 +151,7 @@ public class SameAddressTest extends TestBase {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":956,\"roadcode\":254,\"housenumber\":\"18\",\"floor\":\"1\",\"door\":\"tv\",\"buildingNo\":\"1234\",\"localityCode\":0600,\"roadName\":\"Qarsaalik\",\"sameAddressCprs\":[\"0101001242\",\"0101001243\",\"0101001244\",\"0101001234\",\"0101001236\",\"0101001237\",\"0101001238\",\"0101001239\",\"0101001240\",\"0101001241\",\"0101001245\",\"0101001246\",\"0101001247\",\"0101001248\",\"0101001249\",\"0101001251\"]}", response.getBody(), false);
+            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":956,\"roadcode\":254,\"housenumber\":\"18\",\"floor\":\"1\",\"door\":\"tv\",\"buildingNo\":\"3197\",\"localityCode\":600,\"roadName\":\"Qarsaalik\",\"sameAddressCprs\":[\"0101001242\",\"0101001243\",\"0101001244\",\"0101001234\",\"0101001236\",\"0101001237\",\"0101001238\",\"0101001239\",\"0101001240\",\"0101001241\",\"0101001245\",\"0101001246\",\"0101001247\",\"0101001248\",\"0101001249\",\"0101001251\"]}", response.getBody(), false);
 
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":956"));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":254"));

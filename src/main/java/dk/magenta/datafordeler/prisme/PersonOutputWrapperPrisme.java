@@ -156,14 +156,15 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 root.put("myndighedskode", municipalityCode);
                 int roadCode = personAddressData.getRoadCode();
                 String houseNumber = personAddressData.getHouseNumber();
+                String personBuildingNumber = personAddressData.getBuildingNumber();
                 if (roadCode > 0) {
                     root.put("vejkode", roadCode);
 
-                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
+                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber, personBuildingNumber);
 
                     root.put("kommune", lookup.getMunicipalityName());
 
-                    String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
+                    String buildingNumber = lookup.getbNumber();
                     String roadName = lookup.getRoadName();
 
                     if (roadName != null) {
@@ -182,7 +183,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
 
                     root.put("postnummer", lookup.getPostalCode());
                     root.put("bynavn", lookup.getPostalDistrict());
-                    root.put("stedkode", lookup.getLocalityCode());
+                    root.put("stedkode", lookup.getLocalityCodeNumber());
                 }
 
                 if (municipalityCode > 0 && municipalityCode < 900) {

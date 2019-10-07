@@ -132,8 +132,8 @@ public class SameAddressService {
 
                 if (municipalityCode > 0 && lookupService != null) {
                     GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode);
-                    if (lookup.getLocalityCode() != null) {
-                        root.put("localityCode", lookup.getLocalityCode());
+                    if (lookup.getLocalityCodeNumber() != 0) {
+                        root.put("localityCode", lookup.getLocalityCodeNumber());
                         root.put("roadName", lookup.getRoadName());
                     }
                 }

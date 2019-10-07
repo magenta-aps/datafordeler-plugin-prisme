@@ -291,8 +291,8 @@ public class CvrOutputWrapperPrisme extends OutputWrapper<CompanyRecord> {
                 root.put("vejkode", roadCode);
                 if (municipalityCode > 0 && lookupService != null) {
                     GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode);
-                    if (lookup.getLocalityCode() != null) {
-                        root.put("stedkode", lookup.getLocalityCode());
+                    if (lookup.getLocalityCodeNumber() != 0) {
+                        root.put("stedkode", lookup.getLocalityCodeNumber());
                     }
                 }
             }
