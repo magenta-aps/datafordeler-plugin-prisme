@@ -227,24 +227,27 @@ public class CprRecordCombinedService {
 
                 final FinalWrapper<Boolean> first = new FinalWrapper<>(true);
                 Consumer<PersonEntity> entityWriter = personEntity -> {
-                    try {
-                        cprNumbers.remove(personEntity.getPersonnummer());
-                        if (!first.getInner()) {
-                            outputStream.flush();
-                            outputStream.write(OBJECT_SEPARATOR);
-                        } else {
-                            first.setInner(false);
+                    if(personEntity!=null && personEntity.getPersonnummer()!=null) {
+                        try {
+                            cprNumbers.remove(personEntity.getPersonnummer());
+                            if (!first.getInner()) {
+                                outputStream.flush();
+                                outputStream.write(OBJECT_SEPARATOR);
+                            } else {
+                                first.setInner(false);
+                            }
+
+                            outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
+                            outputStream.write(
+                                    objectMapper.writeValueAsString(
+                                            personOutputWrapper.wrapRecordResult(personEntity, personQuery)
+                                    ).getBytes(StandardCharsets.UTF_8)
+                            );
+                        } catch (IOException e) {
+                            log.error("IOException", e.getStackTrace());
                         }
-                        outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
-                        outputStream.write(
-                                objectMapper.writeValueAsString(
-                                        personOutputWrapper.wrapRecordResult(personEntity, personQuery)
-                                ).getBytes(StandardCharsets.UTF_8)
-                        );
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                        entitySession.evict(personEntity);
                     }
-                    entitySession.evict(personEntity);
                 };
 
                 outputStream.write(START_OBJECT);
