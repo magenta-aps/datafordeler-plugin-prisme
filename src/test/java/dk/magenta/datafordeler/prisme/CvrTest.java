@@ -1,41 +1,21 @@
 package dk.magenta.datafordeler.prisme;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.magenta.datafordeler.core.Application;
 import dk.magenta.datafordeler.core.database.Entity;
-import dk.magenta.datafordeler.core.database.QueryManager;
-import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
-import dk.magenta.datafordeler.core.io.ImportMetadata;
 import dk.magenta.datafordeler.core.user.DafoUserManager;
-import dk.magenta.datafordeler.core.util.InputStreamReader;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.access.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.entitymanager.CompanyEntityManager;
+import dk.magenta.datafordeler.geo.GeoPlugin;
 import dk.magenta.datafordeler.ger.GerPlugin;
-import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
-import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
-import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
-import org.hibernate.Session;
-import org.hibernate.Transaction;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
@@ -50,14 +30,11 @@ import org.springframework.http.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
-import java.util.List;
 
 import static org.mockito.Mockito.when;
 
@@ -75,9 +52,6 @@ public class CvrTest extends TestBase {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private GladdrregPlugin gladdrregPlugin;
 
     @Autowired
     TestRestTemplate restTemplate;
@@ -99,13 +73,13 @@ public class CvrTest extends TestBase {
     @After
     public void cleanup() {
         this.cleanupCompanyData(sessionManager);
-        this.cleanupGladdrregData(sessionManager);
+        this.cleanupGeoData(sessionManager);
     }
 
 
     @Test
     public void testCompanyPrisme() throws IOException, DataFordelerException {
-        loadGladdrregData(gladdrregPlugin, sessionManager);
+        loadAllGeoAdress(sessionManager);
         loadCompany(cvrPlugin, sessionManager, objectMapper);
 
         try {
@@ -180,7 +154,7 @@ public class CvrTest extends TestBase {
         TestUserDetails testUserDetails = new TestUserDetails();
         this.loadGerCompany(gerPlugin, sessionManager);
         this.loadGerParticipant(gerPlugin, sessionManager);
-        this.loadGladdrregData(gladdrregPlugin, sessionManager);
+        this.loadAllGeoAdress(sessionManager);
 
         testUserDetails.giveAccess(
                 cvrPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
@@ -206,7 +180,7 @@ public class CvrTest extends TestBase {
     @Test
     public void testCompanyBulkPrisme() throws Exception {
 
-        loadGladdrregData(gladdrregPlugin, sessionManager);
+        loadAllGeoAdress(sessionManager);
         OffsetDateTime start = OffsetDateTime.now();
         loadManyCompanies(cvrPlugin, sessionManager, 5, 0);
         OffsetDateTime middle = OffsetDateTime.now();

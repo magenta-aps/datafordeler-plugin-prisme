@@ -17,6 +17,7 @@ import dk.magenta.datafordeler.cvr.access.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.entitymanager.CompanyEntityManager;
 import dk.magenta.datafordeler.cvr.records.CompanyRecord;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -145,7 +146,7 @@ public class CvrServiceDirect extends CvrRecordService {
             public void writeTo(OutputStream outputStream) throws IOException {
 
                 final Session lookupSession = sessionManager.getSessionFactory().openSession();
-                LookupService lookupService = new LookupService(lookupSession);
+                GeoLookupService lookupService = new GeoLookupService(lookupSession);
 
                 HashSet<CompanyRecord> records = companyEntityManager.directLookup(cvr, updatedSince, CvrServiceDirect.this.getMunicipalityRestrictions(user));
                 Stream<ObjectNode> cvrFormattedOutput = records.stream().map(
