@@ -14,23 +14,12 @@ import dk.magenta.datafordeler.cpr.CprAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
-import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
+import dk.magenta.datafordeler.geo.GeoPlugin;
 import org.hamcrest.CoreMatchers;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -69,9 +58,6 @@ public class SameAddressTest extends TestBase {
     private PersonEntityManager personEntityManager;
 
     @Autowired
-    private GladdrregPlugin gladdrregPlugin;
-
-    @Autowired
     private TestRestTemplate restTemplate;
 
     @Autowired
@@ -90,6 +76,12 @@ public class SameAddressTest extends TestBase {
     private PersonOutputWrapperPrisme personOutputWrapper;
 
     HashSet<Entity> createdEntities = new HashSet<>();
+
+    @Before
+    public void load() throws IOException, DataFordelerException {
+        this.loadAllGeoAdress(sessionManager);
+    }
+
 
     public void loadPerson() throws Exception {
         InputStream testData = SameAddressTest.class.getResourceAsStream("/person.txt");
@@ -138,71 +130,8 @@ public class SameAddressTest extends TestBase {
         session.close();
     }
 
-    private void loadLocality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/locality.json");
-        LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
-        List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            LocalityRegistration localityRegistration = (LocalityRegistration) registration;
-            QueryManager.saveRegistration(session, localityRegistration.getEntity(), localityRegistration);
-            createdEntities.add(localityRegistration.getEntity());
-        }
-    }
-
-    private void loadRoad(Session session) throws DataFordelerException, IOException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/road.json");
-        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
-        List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            RoadRegistration roadRegistration = (RoadRegistration) registration;
-            QueryManager.saveRegistration(session, roadRegistration.getEntity(), roadRegistration);
-            createdEntities.add(roadRegistration.getEntity());
-        }
-    }
-
-    private void loadMunicipality(Session session) throws DataFordelerException, IOException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/municipality.json");
-        MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
-        List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            MunicipalityRegistration municipalityRegistration = (MunicipalityRegistration) registration;
-            QueryManager.saveRegistration(session, municipalityRegistration.getEntity(), municipalityRegistration);
-            createdEntities.add(municipalityRegistration.getEntity());
-        }
-    }
-
-    private void loadPostalCode(Session session) throws DataFordelerException {
-        InputStream testData = SameAddressTest.class.getResourceAsStream("/postalcode.json");
-        PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
-        List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
-        for (Registration registration : regs) {
-            PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
-            QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
-            createdEntities.add(postalCodeRegistration.getEntity());
-        }
-    }
-
-    private void loadGladdrregData() throws IOException, DataFordelerException {
-        Session session = sessionManager.getSessionFactory().openSession();
-        try {
-            Transaction transaction = session.beginTransaction();
-            loadLocality(session);
-            loadRoad(session);
-            loadMunicipality(session);
-            loadPostalCode(session);
-            transaction.commit();
-        } finally {
-            session.close();
-        }
-    }
-
-
     @Test
     public void test3PersonPrisme() throws Exception {
-        loadGladdrregData();
         loadPerson();
 
 
@@ -222,11 +151,11 @@ public class SameAddressTest extends TestBase {
             Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
             Assert.assertTrue(objectMapper.readTree(response.getBody()).size() > 0);
 
-            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":955,\"roadcode\":1,\"housenumber\":\"5\",\"floor\":\"1\",\"door\":\"tv\",\"buildingNo\":\"1234\",\"localityCode\":500,\"roadName\":\"Aadarujuup Aqquserna\",\"sameAddressCprs\":[\"0101001242\",\"0101001243\",\"0101001244\",\"0101001234\",\"0101001235\",\"0101001236\",\"0101001237\",\"0101001238\",\"0101001239\",\"0101001240\",\"0101001241\",\"0101001245\",\"0101001246\",\"0101001247\",\"0101001248\",\"0101001249\",\"0101001251\"]}", response.getBody(), false);
+            JSONAssert.assertEquals("{\"cprNumber\":\"0101001234\",\"municipalitycode\":956,\"roadcode\":254,\"housenumber\":\"18\",\"floor\":\"1\",\"door\":\"tv\",\"buildingNo\":\"3197\",\"localityCode\":600,\"roadName\":\"Qarsaalik\",\"sameAddressCprs\":[\"0101001242\",\"0101001243\",\"0101001244\",\"0101001234\",\"0101001236\",\"0101001237\",\"0101001238\",\"0101001239\",\"0101001240\",\"0101001241\",\"0101001245\",\"0101001246\",\"0101001247\",\"0101001248\",\"0101001249\",\"0101001251\"]}", response.getBody(), false);
 
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":955"));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":1"));
-            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"housenumber\":\"5\""));
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"municipalitycode\":956"));
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"roadcode\":254"));
+            Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"housenumber\":\"18\""));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"floor\":\"1\""));
             Assert.assertThat(response.getBody(), CoreMatchers.containsString("\"door\":\"tv\""));
 
@@ -235,7 +164,7 @@ public class SameAddressTest extends TestBase {
                     cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                             CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
                     ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
+                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
                     )
             );
             this.applyAccess(testUserDetails);
@@ -251,7 +180,7 @@ public class SameAddressTest extends TestBase {
                     cprPlugin.getAreaRestrictionDefinition().getAreaRestrictionTypeByName(
                             CprAreaRestrictionDefinition.RESTRICTIONTYPE_KOMMUNEKODER
                     ).getRestriction(
-                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_KUJALLEQ
+                            CprAreaRestrictionDefinition.RESTRICTION_KOMMUNE_SERMERSOOQ
                     )
             );
             this.applyAccess(testUserDetails);

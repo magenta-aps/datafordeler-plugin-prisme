@@ -22,6 +22,7 @@ import dk.magenta.datafordeler.cvr.access.CvrAreaRestrictionDefinition;
 import dk.magenta.datafordeler.cvr.access.CvrRolesDefinition;
 import dk.magenta.datafordeler.cvr.query.CompanyRecordQuery;
 import dk.magenta.datafordeler.cvr.records.*;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -161,7 +162,7 @@ public class CvrRecordCombinedService {
 
     private ObjectNode getJSONFromCvrList(List<String> cvrNumbers, boolean returnParticipantDetails, boolean asList) throws DataFordelerException, JsonProcessingException {
         Session session = sessionManager.getSessionFactory().openSession();
-        LookupService service = new LookupService(session);
+        GeoLookupService service = new GeoLookupService(session);
         try {
 
             ObjectNode formattedRecord = objectMapper.createObjectNode();

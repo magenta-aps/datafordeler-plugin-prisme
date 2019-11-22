@@ -8,6 +8,8 @@ import dk.magenta.datafordeler.core.util.Bitemporality;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.records.person.CprBitemporalPersonRecord;
 import dk.magenta.datafordeler.cpr.records.person.data.*;
+import dk.magenta.datafordeler.geo.GeoLookupDTO;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -23,9 +25,9 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private LookupService lookupService;
+    private GeoLookupService lookupService;
 
-    public void setLookupService(LookupService lookupService) {
+    public void setLookupService(GeoLookupService lookupService) {
         this.lookupService = lookupService;
     }
 
@@ -154,15 +156,16 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                 root.put("myndighedskode", municipalityCode);
                 int roadCode = personAddressData.getRoadCode();
                 String houseNumber = personAddressData.getHouseNumber();
+                String personBuildingNumber = personAddressData.getBuildingNumber();
                 if (roadCode > 0) {
                     root.put("vejkode", roadCode);
 
-                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber);
+                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode, houseNumber, personBuildingNumber);
 
-                    root.put("kommune", lookup.municipalityName);
+                    root.put("kommune", lookup.getMunicipalityName());
 
-                    String buildingNumber = municipalityCode >= 950 ? personAddressData.getBuildingNumber() : null;
-                    String roadName = lookup.roadName;
+                    String buildingNumber = lookup.getbNumber();
+                    String roadName = lookup.getRoadName();
 
                     if (roadName != null) {
                         root.put("adresse", this.getAddressFormatted(
@@ -175,12 +178,12 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
                                 buildingNumber
                         ));
                     } else if (buildingNumber != null && !buildingNumber.isEmpty()) {
-                        root.put("adresse", formatBNumber(buildingNumber));
+                        root.put("adresse", buildingNumber);
                     }
 
-                    root.put("postnummer", lookup.postalCode);
-                    root.put("bynavn", lookup.postalDistrict);
-                    root.put("stedkode", lookup.localityCode);
+                    root.put("postnummer", lookup.getPostalCode());
+                    root.put("bynavn", lookup.getPostalDistrict());
+                    root.put("stedkode", lookup.getLocalityCodeNumber());
                 }
 
                 if (municipalityCode > 0 && municipalityCode < 900) {
@@ -285,7 +288,7 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         }
 
         if (bNumber != null && !bNumber.isEmpty()) {
-            out.append(" (" + formatBNumber(bNumber) + ")");
+            out.append(" (" + bNumber + ")");
         }
 
         String result = out.toString().trim();
@@ -294,12 +297,6 @@ public class PersonOutputWrapperPrisme extends OutputWrapper<PersonEntity> {
         } else {
             return result;
         }
-    }
-
-    private static String formatBNumber(String bnr) {
-        bnr = bnr.replaceAll("^0+", "");
-        bnr = bnr.replaceAll("^B-?", "");
-        return "B-" + bnr;
     }
 
     private String emptyIfNull(String text) {
