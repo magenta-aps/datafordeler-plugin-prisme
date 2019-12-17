@@ -24,6 +24,7 @@ import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntityManager;
 import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
 import dk.magenta.datafordeler.cpr.direct.CprDirectLookup;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
@@ -92,7 +93,7 @@ public class CprRecordCombinedService {
         this.checkAndLogAccess(loggerHelper);
 
         try (final Session session = sessionManager.getSessionFactory().openSession()) {
-            LookupService lookupService = new LookupService(session);
+            GeoLookupService lookupService = new GeoLookupService(session);
             personOutputWrapper.setLookupService(lookupService);
 
             PersonRecordQuery personQuery = new PersonRecordQuery();
@@ -213,7 +214,7 @@ public class CprRecordCombinedService {
         return outputStream -> {
 
             final Session lookupSession = sessionManager.getSessionFactory().openSession();
-            LookupService lookupService = new LookupService(lookupSession);
+            GeoLookupService lookupService = new GeoLookupService(lookupSession);
             personOutputWrapper.setLookupService(lookupService);
 
             final Session entitySession = sessionManager.getSessionFactory().openSession();
@@ -226,24 +227,27 @@ public class CprRecordCombinedService {
 
                 final FinalWrapper<Boolean> first = new FinalWrapper<>(true);
                 Consumer<PersonEntity> entityWriter = personEntity -> {
-                    try {
-                        cprNumbers.remove(personEntity.getPersonnummer());
-                        if (!first.getInner()) {
-                            outputStream.flush();
-                            outputStream.write(OBJECT_SEPARATOR);
-                        } else {
-                            first.setInner(false);
+                    if(personEntity!=null && personEntity.getPersonnummer()!=null) {
+                        try {
+                            cprNumbers.remove(personEntity.getPersonnummer());
+                            if (!first.getInner()) {
+                                outputStream.flush();
+                                outputStream.write(OBJECT_SEPARATOR);
+                            } else {
+                                first.setInner(false);
+                            }
+
+                            outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
+                            outputStream.write(
+                                    objectMapper.writeValueAsString(
+                                            personOutputWrapper.wrapRecordResult(personEntity, personQuery)
+                                    ).getBytes(StandardCharsets.UTF_8)
+                            );
+                        } catch (IOException e) {
+                            log.error("IOException", e.getStackTrace());
                         }
-                        outputStream.write(("\"" + personEntity.getPersonnummer() + "\":").getBytes());
-                        outputStream.write(
-                                objectMapper.writeValueAsString(
-                                        personOutputWrapper.wrapRecordResult(personEntity, personQuery)
-                                ).getBytes(StandardCharsets.UTF_8)
-                        );
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                        entitySession.evict(personEntity);
                     }
-                    entitySession.evict(personEntity);
                 };
 
                 outputStream.write(START_OBJECT);

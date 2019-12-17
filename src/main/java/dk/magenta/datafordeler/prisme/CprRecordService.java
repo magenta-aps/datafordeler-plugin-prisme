@@ -21,6 +21,7 @@ import dk.magenta.datafordeler.cpr.CprPlugin;
 import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
@@ -88,7 +89,7 @@ public class CprRecordService {
 
         final Session session = sessionManager.getSessionFactory().openSession();
         try {
-            LookupService lookupService = new LookupService(session);
+            GeoLookupService lookupService = new GeoLookupService(session);
             personOutputWrapper.setLookupService(lookupService);
 
             PersonRecordQuery personQuery = new PersonRecordQuery();
@@ -173,7 +174,7 @@ public class CprRecordService {
         return outputStream -> {
 
             final Session lookupSession = sessionManager.getSessionFactory().openSession();
-            LookupService lookupService = new LookupService(lookupSession);
+            GeoLookupService lookupService = new GeoLookupService(lookupSession);
             personOutputWrapper.setLookupService(lookupService);
 
             final Session entitySession = sessionManager.getSessionFactory().openSession();

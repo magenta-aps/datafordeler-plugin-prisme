@@ -20,6 +20,8 @@ import dk.magenta.datafordeler.cpr.CprRolesDefinition;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cpr.data.person.PersonRecordQuery;
 import dk.magenta.datafordeler.cpr.records.person.data.AddressDataRecord;
+import dk.magenta.datafordeler.geo.GeoLookupDTO;
+import dk.magenta.datafordeler.geo.GeoLookupService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
@@ -80,7 +82,7 @@ public class SameAddressService {
 
 
         try(Session session = sessionManager.getSessionFactory().openSession()) {
-            LookupService lookupService = new LookupService(session);
+            GeoLookupService lookupService = new GeoLookupService(session);
 
             PersonRecordQuery personQuery = new PersonRecordQuery();
             personQuery.setPersonnummer(cprNummer);
@@ -129,10 +131,10 @@ public class SameAddressService {
                 root.put("buildingNo", address.getBuildingNumber());
 
                 if (municipalityCode > 0 && lookupService != null) {
-                    Lookup lookup = lookupService.doLookup(municipalityCode, roadCode);
-                    if (lookup.localityCode != 0) {
-                        root.put("localityCode", lookup.localityCode);
-                        root.put("roadName", lookup.roadName);
+                    GeoLookupDTO lookup = lookupService.doLookup(municipalityCode, roadCode);
+                    if (lookup.getLocalityCodeNumber() != 0) {
+                        root.put("localityCode", lookup.getLocalityCodeNumber());
+                        root.put("roadName", lookup.getRoadName());
                     }
                 }
 

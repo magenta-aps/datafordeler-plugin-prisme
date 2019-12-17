@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.magenta.datafordeler.core.database.DatabaseEntry;
 import dk.magenta.datafordeler.core.database.QueryManager;
-import dk.magenta.datafordeler.core.database.Registration;
 import dk.magenta.datafordeler.core.database.SessionManager;
 import dk.magenta.datafordeler.core.exception.DataFordelerException;
 import dk.magenta.datafordeler.core.io.ImportMetadata;
@@ -12,25 +11,21 @@ import dk.magenta.datafordeler.core.util.InputStreamReader;
 import dk.magenta.datafordeler.cpr.data.person.PersonEntity;
 import dk.magenta.datafordeler.cvr.CvrPlugin;
 import dk.magenta.datafordeler.cvr.records.CompanyRecord;
+import dk.magenta.datafordeler.geo.data.GeoEntityManager;
+import dk.magenta.datafordeler.geo.data.accessaddress.AccessAddressEntityManager;
+import dk.magenta.datafordeler.geo.data.building.BuildingEntityManager;
+import dk.magenta.datafordeler.geo.data.locality.LocalityEntityManager;
+import dk.magenta.datafordeler.geo.data.municipality.MunicipalityEntityManager;
+import dk.magenta.datafordeler.geo.data.postcode.PostcodeEntityManager;
+import dk.magenta.datafordeler.geo.data.road.RoadEntityManager;
+import dk.magenta.datafordeler.geo.data.unitaddress.UnitAddressEntityManager;
 import dk.magenta.datafordeler.ger.GerPlugin;
 import dk.magenta.datafordeler.ger.data.company.CompanyEntity;
 import dk.magenta.datafordeler.ger.data.responsible.ResponsibleEntity;
-import dk.magenta.datafordeler.gladdrreg.GladdrregPlugin;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.locality.LocalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeRegistration;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadEntityManager;
-import dk.magenta.datafordeler.gladdrreg.data.road.RoadRegistration;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.junit.Assert;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -38,6 +33,41 @@ import java.io.InputStream;
 import java.util.List;
 
 public abstract class TestBase {
+
+
+    @Autowired
+    private LocalityEntityManager localityEntityManager;
+
+    @Autowired
+    private RoadEntityManager roadEntityManager;
+
+    @Autowired
+    private BuildingEntityManager buildingEntityManager;
+
+    @Autowired
+    private MunicipalityEntityManager municipalityEntityManager;
+
+    @Autowired
+    private PostcodeEntityManager postcodeEntityManager;
+
+    @Autowired
+    private AccessAddressEntityManager accessAddressEntityManager;
+
+    @Autowired
+    private UnitAddressEntityManager unitAddressEntityManager;
+
+
+    protected void loadAllGeoAdress(SessionManager sessionManager) throws IOException {
+        this.loadGeoData(sessionManager, localityEntityManager, "/locality.json");
+        this.loadGeoData(sessionManager, roadEntityManager,"/road.json");
+        this.loadGeoData(sessionManager, unitAddressEntityManager, "/unit.json");
+        this.loadGeoData(sessionManager, municipalityEntityManager, "/municipality.json");
+        this.loadGeoData(sessionManager, postcodeEntityManager, "/post.json");
+        this.loadGeoData(sessionManager, buildingEntityManager, "/building.json");
+        this.loadGeoData(sessionManager, accessAddressEntityManager, "/access.json");
+    }
+
+
 
     protected void cleanup(SessionManager sessionManager, Class[] classes) {
         Session session = sessionManager.getSessionFactory().openSession();
@@ -58,60 +88,23 @@ public abstract class TestBase {
         }
     }
 
-    private void loadLocality(GladdrregPlugin gladdrregPlugin, Session session) throws DataFordelerException, IOException {
-        InputStream testData = TestBase.class.getResourceAsStream("/locality.json");
-        LocalityEntityManager localityEntityManager = (LocalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(LocalityEntity.schema);
-        List<? extends Registration> regs = localityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            LocalityRegistration localityRegistration = (LocalityRegistration) registration;
-            QueryManager.saveRegistration(session, localityRegistration.getEntity(), localityRegistration);
-        }
-    }
-
-    private void loadRoad(GladdrregPlugin gladdrregPlugin, Session session) throws DataFordelerException, IOException {
-        InputStream testData = TestBase.class.getResourceAsStream("/road.json");
-        RoadEntityManager roadEntityManager = (RoadEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(RoadEntity.schema);
-        List<? extends Registration> regs = roadEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            RoadRegistration roadRegistration = (RoadRegistration) registration;
-            QueryManager.saveRegistration(session, roadRegistration.getEntity(), roadRegistration);
-        }
-    }
-
-    private void loadMunicipality(GladdrregPlugin gladdrregPlugin, Session session) throws DataFordelerException, IOException {
-        InputStream testData = TestBase.class.getResourceAsStream("/municipality.json");
-        MunicipalityEntityManager municipalityEntityManager = (MunicipalityEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(MunicipalityEntity.schema);
-        List<? extends Registration> regs = municipalityEntityManager.parseData(testData, new ImportMetadata());
-        testData.close();
-        for (Registration registration : regs) {
-            MunicipalityRegistration municipalityRegistration = (MunicipalityRegistration) registration;
-            QueryManager.saveRegistration(session, municipalityRegistration.getEntity(), municipalityRegistration);
-        }
-    }
-
-    private void loadPostalCode(GladdrregPlugin gladdrregPlugin, Session session) throws DataFordelerException {
-        InputStream testData = TestBase.class.getResourceAsStream("/postalcode.json");
-        PostalCodeEntityManager postalCodeEntityManager = (PostalCodeEntityManager) gladdrregPlugin.getRegisterManager().getEntityManager(PostalCodeEntity.schema);
-        List<? extends Registration> regs = postalCodeEntityManager.parseData(testData, new ImportMetadata());
-        for (Registration registration : regs) {
-            PostalCodeRegistration postalCodeRegistration = (PostalCodeRegistration) registration;
-            QueryManager.saveRegistration(session, postalCodeRegistration.getEntity(), postalCodeRegistration);
-        }
-    }
-
-    protected void loadGladdrregData(GladdrregPlugin gladdrregPlugin, SessionManager sessionManager) throws IOException, DataFordelerException {
+    protected void loadGeoData(SessionManager sessionManager, GeoEntityManager entityManager, String resourceName) throws IOException {
+        InputStream data = TestBase.class.getResourceAsStream(resourceName);
         Session session = sessionManager.getSessionFactory().openSession();
+        Transaction transaction = session.beginTransaction();
+        ImportMetadata importMetadata = new ImportMetadata();
         try {
-            Transaction transaction = session.beginTransaction();
-            loadMunicipality(gladdrregPlugin, session);
-            loadLocality(gladdrregPlugin, session);
-            loadRoad(gladdrregPlugin, session);
-            loadPostalCode(gladdrregPlugin, session);
+            importMetadata.setTransactionInProgress(true);
+            importMetadata.setSession(session);
+            entityManager.parseData(data, importMetadata);
             transaction.commit();
+        } catch (Exception e) {
+            transaction.rollback();
+            e.printStackTrace();
         } finally {
+            importMetadata.setTransactionInProgress(false);
             session.close();
+            data.close();
         }
     }
 
@@ -188,14 +181,9 @@ public abstract class TestBase {
         }
     }
 
-    protected void cleanupGladdrregData(SessionManager sessionManager) {
-        this.cleanup(sessionManager, new Class[]{
-                dk.magenta.datafordeler.gladdrreg.data.locality.LocalityEntity.class,
-                dk.magenta.datafordeler.gladdrreg.data.road.RoadEntity.class,
-                dk.magenta.datafordeler.gladdrreg.data.municipality.MunicipalityEntity.class,
-                dk.magenta.datafordeler.gladdrreg.data.postalcode.PostalCodeEntity.class
-        });
-        QueryManager.clearCaches();
+    protected void cleanupGeoData(SessionManager sessionManager) {
+        //TODO: might be needed for some cleanup between tests
+
     }
 
     protected void cleanupPersonData(SessionManager sessionManager) {
