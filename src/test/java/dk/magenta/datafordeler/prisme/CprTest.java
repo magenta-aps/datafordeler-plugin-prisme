@@ -147,7 +147,7 @@ public class CprTest extends TestBase {
     public void test1PersonRecordOutput() throws Exception {
 
         Session session = sessionManager.getSessionFactory().openSession();
-        GeoLookupService lookupService = new GeoLookupService(session);
+        GeoLookupService lookupService = new GeoLookupService(sessionManager);
         personOutputWrapper.setLookupService(lookupService);
         try {
             String ENTITY = "e";
